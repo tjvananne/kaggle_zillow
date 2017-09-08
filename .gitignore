@@ -1,0 +1,14 @@
+
+# ignore .rds files for now
+*.rds
+
+# ignore the .csv input files for now
+input/*.csv
+
+# ignore these things windows vim likes to create
+*.un~
+*~
+
+# these things that get created when unzipping csvs
+*_MACOSX*
+
