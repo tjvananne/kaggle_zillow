@@ -44,54 +44,103 @@ joined <- merge(x=train, y=prop, by='parcelid', all.x=T, all.y=T, sort=F)
 
 
     # one by one feature analysis:
-    # look at everything except for things with "id" in the name -- those we'll look at on their own    
+    # look at everything except for things with "id" in the name -- those we'll look at on their own
 
-    # common transformation is to combine cut and quantile to bin numeric values into categories:
-    # https://stackoverflow.com/questions/11728419/using-cut-and-quartile-to-generate-breaks-in-r-function
-    # Hmisc::cut2() has a "g" parameter for number of quantile groups (can "g" and "m" params be give?)
+    #' might want to come back and revisit all of these and flag all of the records where they are
+    #' in the top 1 or 0.5 % or something. Some of these right-hand tails are absurd... very skewed data
+    #' Maybe we should also look into log transformations AND categorizing data AFTER log transformations
+
+
+        names_not_procd <- function(para_df, para_col_prefix_exclude) {
+            names_w_pref <- names(para_df)[grepl(para_col_prefix_exclude, names(para_df))]
+            names_wo_pref <- names(para_df)[!grepl(para_col_prefix_exclude, names(para_df))]
+            return(names_wo_pref)
+        }
 
 
         # basementsqft is integer, that is fine
-        # 1) basic regression
-        # 2) categorical on "pentiles?" 20% quantiles (5)
-        class(joined$basementsqft)
-        quantile(joined$basementsqft, seq(0, 1, .20), na.rm=T) # <-- cut these quantiles
-        joined$basementsqft %>% unique() %>% head(10)
-        joined$basementsqft %>% min(na.rm=T)
-    
-    
+        # create 5-class category
+        joined$tv_cat_basementsqft <- cut2(joined$basementsqft, g=5)
+        levels(joined$tv_cat_basementsqft)  # for manual inspection
+        joined$tv_cat_basementsqft <- as.numeric(joined$tv_cat_basementsqft)
+        joined$tv_cat_basementsqft <- paste0("tv_cat_basementsqft_", as.character(joined$tv_cat_basementsqft))
+        table(joined$tv_cat_basementsqft)
+        # rename numeric field
+        joined$tv_reg_basementsqft <- joined$basementsqft
+        # remove original
+        joined$basementsqft <- NULL
+        
+        
+        
+        
         # bathroomcnt
-        # this will be a good feature:
-        # 1) ceiling() will give us count of whole toilets (categorical: <=1, 2, 3, 4, >4)
-        # 2) then also run a regression on the raw number of bathrooms with the .5 halves
-        # 3) binary categorical for whether a half-bath is present (bathroomcnt %% 1 == 0.5)
-        class(joined$bathroomcnt)
-        joined$bathroomcnt %>% unique() %>% head(10)
-        summary(joined$bathroomcnt)
-        quantile(joined$bathroomcnt, probs=seq(0, 1, 0.05), na.rm=T)
-        unique(joined$bathroomcnt) %% 1 == 0.5  # <-- new feature: has_a_half_bathrm (binary categorical)
-        # joined$bathroomcnt %>% unique() %>% floor() # <-- showers
-        joined$bathroomcnt %>% ceiling() %>% summary() # <-- toilets (categorical: 0, 1, 2, 3, 4, >4)
-
+        # create "has_halfbath" feature
+        joined$tv_cat_has_halfbath <- as.integer(joined$bathroomcnt %% 1 == 0.5)
+        joined$tv_cat_has_halfbath <- paste0("tv_cat_has_halfbath_", as.character(joined$tv_cat_has_halfbath))
+        # create "toilets_count" categorical feature
+        joined$tv_cat_count_toilets <- cut2(ceiling(joined$bathroomcnt), g=5)
+        levels(joined$tv_cat_count_toilets); table(joined$tv_cat_count_toilets)
+        joined$tv_cat_count_toilets <- as.numeric(joined$tv_cat_count_toilets)
+        joined$tv_cat_count_toilets <- paste0("tv_cat_count_toilets_", as.character(joined$tv_cat_count_toilets))
+        table(joined$tv_cat_count_toilets)
+        # create bathroomcnt regression feature
+        joined$tv_reg_bathroomcnt <- joined$bathroomcnt
+        # remove original
+        joined$bathroomcnt <- NULL
+        
+        
         
         # bedroomcnt
-        # 1) regression
-        # 2) categorical (<=1, 2, 3, 4, >5)
-        quantile(joined$bedroomcnt, seq(0, 1, 0.05), na.rm=T)
-    
+        quantile(joined$bedroomcnt, seq(0, 1, .10), na.rm=T)
+        # create binned categorical bedroom count
+        joined$tv_cat_bedroomcnt <- cut2(joined$bedroomcnt, g=9)
+        levels(joined$tv_cat_bedroomcnt); table(joined$tv_cat_bedroomcnt)
+        joined$tv_cat_bedroomcnt <- as.numeric(joined$tv_cat_bedroomcnt)
+        joined$tv_cat_bedroomcnt <- paste0("tv_cat_bedroomcnt_", joined$tv_cat_bedroomcnt)
+        table(joined$tv_cat_bedroomcnt)
+        # create regression bedroom count
+        joined$tv_reg_bedroomcnt <- joined$bedroomcnt
+        # remove original
+        joined$bedroomcnt <- NULL
+        
+        
         
         # calulatedbathnbr -- more missing values than other bathrm number ignore for now
+        class(joined$calculatedbathnbr)
+        quantile(joined$calculatedbathnbr, seq(0, 1, 0.1), na.rm=T)
+        # I DON'T THINK THIS GIVES US ANY ADDITIONAL INFO, GOING TO REMOVE THIS FIELD
+        joined$calculatedbathnbr <- NULL
         
-        # finishedfloor1squarefeet
-        # 1) regression
-        # 2) categorical pentiles
-        quantile(joined$finishedfloor1squarefeet, seq(0, 1, 0.20), na.rm=T)
+        
+        
+        
+        # finishedfloor1squarefeet -- this one has some serious detail, lets make two cats and one reg
+        quantile(joined$finishedfloor1squarefeet, seq(0, 1, 0.10), na.rm=T)
+        # five categories
+        joined$tv_cat_finflr1_five <- cut2(joined$finishedfloor1squarefeet, g=5)
+        levels(joined$tv_cat_finflr1_five); table(joined$tv_cat_finflr1_five)
+        joined$tv_cat_finflr1_five <- as.numeric(joined$tv_cat_finflr1_five)
+        joined$tv_cat_finflr1_five <- paste0("tv_cat_finflr1_five_", as.character(joined$tv_cat_finflr1_five))
+        table(joined$tv_cat_finflr1_five)  # 40k in each of the five bins, nice!
+        # ten categories
+        joined$tv_cat_finflr1_ten <- cut2(joined$finishedfloor1squarefeet, g=10)
+        levels(joined$tv_cat_finflr1_ten); table(joined$tv_cat_finflr1_ten)
+        joined$tv_cat_finflr1_ten <- as.numeric(joined$tv_cat_finflr1_ten)
+        joined$tv_cat_finflr1_ten <- paste0("tv_cat_finflr1_ten_", as.character(joined$tv_cat_finflr1_ten))
+        table(joined$tv_cat_finflr1_ten)
+        # regression
+        joined$tv_reg_finflr1 <- joined$finishedfloor1squarefeet
+        joined$finishedfloor1squarefeet <- NULL
+        
+        
+        # calculatedfinishedsquarefeet
+        quantile(joined$calculatedfinishedsquarefeet, seq(0, 1, .10), na.rm=T)
+        
         
         
         # calculatedfinishedsquarefeet -- sqr ft of all finished area in home
         # 1) regression
-        
-        quantile(joined$calculatedfinishedsquarefeet, seq(0, 1, 0.10), na.rm=T)
+        quantile(joined$calculatedfinishedsquarefeet, seq(0, 1, 0.01), na.rm=T)
         
         
     
