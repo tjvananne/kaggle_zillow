@@ -33,16 +33,23 @@ setDF(zzzsampsub)
 prop_summary <- read.csv('../cache/summary/prop_summary.csv')
 
 
-# add prefix to ids
+# rename parcelid to id and add prefix to ids
+
 prop$parcelid <- paste0("pid_", as.character(prop$parcelid))
 train$parcelid <- paste0("pid_", as.character(train$parcelid))
 
 
 # use this for everything -- remove logerror / transactiondate for all feature stacking
 joined <- merge(x=train, y=prop, by='parcelid', all.x=T, all.y=T, sort=F)
+joined$id <- joined$parcelid; joined$parcelid <- NULL
+
 
     # reset
     joined_filepath <- file.path(GBL_PATH_TO_DATA, 'joined.rds')
+    
+        # to remove and resave the file
+        file.remove(joined_filepath)
+    
     if(file.exists(joined_filepath)) {
         joined <- readRDS(joined_filepath)
     } else {
@@ -90,7 +97,7 @@ joined <- merge(x=train, y=prop, by='parcelid', all.x=T, all.y=T, sort=F)
             sum(is.na(joined$tv_cat_count_toilets))
             table(joined$tv_cat_count_toilets)
         joined$tv_reg_bathroomcnt <- joined$bathroomcnt
-        joined$tv_logreg_bathroomcnt <- log(joined$bathroomcnt)
+        joined$tv_logreg_bathroomcnt <- log(joined$bathroomcnt + 1)
         joined$bathroomcnt <- NULL
         
         
@@ -363,17 +370,99 @@ joined <- merge(x=train, y=prop, by='parcelid', all.x=T, all.y=T, sort=F)
             
         
         
-        # propertycountylandusecode
+        # propertycountylandusecode -- come back and check this
             sum(is.na(joined$propertycountylandusecode))  # 0
             joined$propertycountylandusecode[joined$propertycountylandusecode == ''] <- 'blank'
         joined$tv_cat_proplanduse <- paste0("tv_cat_proplanduse_", joined$propertycountylandusecode)
+        
+        proplanduse_df_ <- table(joined$tv_cat_proplanduse) %>% data.frame() %>% arrange(desc(Freq)) %>% top_n(20)
+        joined$tv_cat_proplanduse <- ifelse(joined$tv_cat_proplanduse %in% proplanduse_df_$Var1, 
+                                            joined$tv_cat_proplanduse, NA)
+        table(joined$tv_cat_proplanduse)
+        sum(is.na(joined$tv_cat_proplanduse))  # 92k NAs
         joined$propertycountylandusecode <- NULL
         
         
-        table(joined$tv_cat_proplanduse) %>% data.frame() %>% arrange(desc(Freq))
+        
+        # propertyzoningdesc -- not sure, let's go ahead and remove this for now?
+            joined$propertyzoningdesc[200]  # 5,639 unique values
+            table(joined$propertyzoningdesc) %>% data.frame() %>% arrange(desc(Freq))
+        joined$propertyzoningdesc <- NULL
+        
+        
+        # rawcensustractandblock -- numeric?
+            hist(joined$rawcensustractandblock, col='red', breaks=50)
+            joined$rawcensustractandblock %>% unique() %>% length()
+            quantile(joined$rawcensustractandblock, seq(0, 1, 0.1), na.rm=T)
+        joined$tv_cat_rawcensus_five <- cut2_rename(joined$rawcensustractandblock, 5, "tv_cat_rawcensus_five")
+        joined$tv_cat_rawcensus_twenty <- cut2_rename(joined$rawcensustractandblock, 20, "tv_cat_rawcensus_twenty")
+        joined$tv_reg_rawcensus <- joined$rawcensustractandblock
+        joined$rawcensustractandblock <- NULL
+        
+        
+        # roomcnt
+            sum(is.na(joined$roomcnt))  # 11k
+            hist(joined$roomcnt, col='red', breaks=50)
+            hist(log(joined$roomcnt), col='red', breaks=50)
+            min(joined$roomcnt, na.rm=T)  # 0
+        joined$tv_cat_roomcnt <- cut2(joined$roomcnt, cuts = c(
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, max(joined$roomcnt, na.rm=T)))
+        table(joined$tv_cat_roomcnt)
+        joined$tv_cat_roomcnt <- as.numeric(joined$tv_cat_roomcnt)
+        joined$tv_cat_roomcnt <- ifelse(is.na(joined$tv_cat_roomcnt), NA, 
+                                        paste0("tv_cat_roomcnt_", as.character(joined$tv_cat_roomcnt)))
+        table(joined$tv_cat_roomcnt)
+        
+        joined$tv_reg_roomcnt <- joined$roomcnt
+        joined$tv_logreg_roomcnt <- log(joined$roomcnt + 1)
+        joined$roomcnt <- NULL
+        
+        
+        # checkpoint to make sure our pipeline is good:
+        saveRDS(joined, file=file.path(GBL_PATH_TO_DATA, "joined2.rds"))
+        
+        
+        # threequarterbathnbr
+    
+        
+        
+        # unitcnt
+        
+        # yardbuildingsqft17
+        
+        # yardbuildingsqft26
+        
+        # yearbuilt
+        
+        # numberofstories
+        
+        # fireplaceflag
+        
+        # structuretaxvaluedollarcnt
+        
+        # taxvaluedollarcnt
+        
+        # assessmentyear
+        
+        # landtaxvaluedollarcnt
+        
+        # taxamount
+        
+        # taxdelinquencyflag
+        
+        # taxdelinquencyyear
+        
+        # censustractandblock
+        
+        # landtaxvaluedollarcnt
+        
+        # taxamount
         
         
         # catch        
+        
+        
+        
         
         
     
