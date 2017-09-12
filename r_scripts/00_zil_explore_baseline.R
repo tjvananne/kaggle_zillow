@@ -98,15 +98,17 @@ feats_all <- readRDS(file.path(GBL_PATH_TO_CACHE, "feats_all_00_zil_baseline01.r
     # feature ids need to be at the "all" level
     distinct_feats_all <- data.frame(feature_name = unique(feats_all$feature_name))
     distinct_feats_all$feature_num <- as.numeric(as.factor(distinct_feats_all$feature_name))
+    
+    setDT(feats_all); setDT(distinct_feats_all)
+    setkey(feats_all, feature_name); setkey(distinct_feats_all, feature_name)
     feats_all <- merge(x=feats_all, y=distinct_feats_all, by=c("feature_name"), all.x=T, all.y=F, sort=F)
-
-    # I'd like to do it this way, if not, then use above as workaround
-    feats_all$feature_num <- as.numeric(as.factor(feats_all$feature_name))  # <-- this is giving me trouble, not enough ram?
+    
+    setDF(feats_all)
     gc()
     
     # split back into groups
-    x_train <- feats_all[feats_all$id %in% y_train$id, ]
-    x_test <- feats_all[feats_all$id %in% y_test$id, ]
+    x_train <- feats_all[feats_all$id %in% y_train$id, ]  # <-- challenge from past taylor who doesn't know data.table -- try doing this in data.table to learn how to!
+    x_test <- feats_all[feats_all$id %in% y_test$id, ]    # <-- build shiny apps. publish them on own web server. show what they can do with pre-aggregated data for free. charge for real thing.
     x_holdout <- feats_all[feats_all$id %in% y_holdout$id, ]
 
 
