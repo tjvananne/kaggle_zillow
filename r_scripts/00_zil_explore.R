@@ -418,8 +418,9 @@ joined$id <- joined$parcelid; joined$parcelid <- NULL
         joined$roomcnt <- NULL
         
         
-        # checkpoint to make sure our pipeline is good:
-        saveRDS(joined, file=file.path(GBL_PATH_TO_DATA, "joined2.rds"))
+            # checkpoint to make sure our pipeline is good:
+            # "feats_all_00_zil_baseline01.rds"
+            saveRDS(joined, file=file.path(GBL_PATH_TO_DATA, "joined2.rds"))
         
         
         # threequarterbathnbr
