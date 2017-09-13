@@ -12,42 +12,47 @@ getwd()
 source('GBL_zil_config.R')
 source('GBL_zil_function_defs.R')
 
+rebuild1 <- FALSE
 
-
-# THIS WAS A CHECKPOINT from the preprocessing file
-joined <- readRDS(file.path(GBL_PATH_TO_DATA, "joined2.rds"))
-joined <- joined[!duplicated(joined$id), ]
-assert_that(sum(duplicated(joined$id)) == 0)
-
-
-# first baseline will ignore transactiondates
-joined_sub <- joined[, names(joined)[names(joined) %in% c("id", "logerror") | grepl("tv_", names(joined))]]
-rm(joined); gc()
-
-
-# identify train/test + holdout
-set.seed(1776)
-joined_sub <- joined_sub %>% arrange(id)
-y <- joined_sub[, c("id", "logerror")]
-y_test <- y[is.na(y$logerror), ]
-y_train <- y[!is.na(y$logerror), ]
-y_holdout <- y_train[sample(1:nrow(y_train), size = ceiling(0.15 * nrow(y_train))), ]
-y_train <- y_train[!y_train$id %in% y_holdout$id, ]
-
-save(y, y_test, y_train, y_holdout, joined_sub, file=file.path(GBL_PATH_TO_CACHE, "y_values_00_zil_baseline01.RData"))
-gc()
-
-assert_that(!any(y_train$id %in% y_holdout$id))
-assert_that(!any(y_train$id %in% y_test$id))
-
-
-feats_name_num <- setdiff(names(joined_sub)[sapply(joined_sub, class) %in% c("numeric", "integer")], c("id", "logerror"))
-feats_name_cat <- setdiff(names(joined_sub)[sapply(joined_sub, class) %in% c("character", "factor")], c("id", "logerror"))
-
-joined_num <- joined_sub[, feats_name_num]
-joined_cat <- joined_sub[, feats_name_cat]
-
-
+if(rebuild1) {
+    # THIS WAS A CHECKPOINT from the preprocessing file
+    joined <- readRDS(file.path(GBL_PATH_TO_DATA, "joined2.rds"))
+    joined <- joined[!duplicated(joined$id), ]
+    assert_that(sum(duplicated(joined$id)) == 0)
+    
+        # we don't have transaction dates for ANY of test
+        sum(is.na(joined$transactiondate))
+        sum(is.na(joined$logerror))
+    
+    
+    # first baseline will ignore transactiondates
+    joined_sub <- joined[, names(joined)[names(joined) %in% c("id", "logerror", "transactiondate") | grepl("tv_", names(joined))]]
+    rm(joined); gc()
+    
+    
+    # identify train/test + holdout
+    set.seed(1776)
+    joined_sub <- joined_sub %>% arrange(id)
+    y <- joined_sub[, c("id", "logerror")]
+    y_test <- y[is.na(y$logerror), ]
+    y_train <- y[!is.na(y$logerror), ]
+    y_holdout <- y_train[sample(1:nrow(y_train), size = ceiling(0.15 * nrow(y_train))), ]
+    y_train <- y_train[!y_train$id %in% y_holdout$id, ]
+    
+    # save(y, y_test, y_train, y_holdout, joined_sub, file=file.path(GBL_PATH_TO_CACHE, "y_values_00_zil_baseline01.RData"))
+    gc()
+    
+    assert_that(!any(y_train$id %in% y_holdout$id))
+    assert_that(!any(y_train$id %in% y_test$id))
+    
+    
+    feats_name_num <- setdiff(names(joined_sub)[sapply(joined_sub, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
+    feats_name_cat <- setdiff(names(joined_sub)[sapply(joined_sub, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
+    
+    joined_num <- joined_sub[, feats_name_num]
+    joined_cat <- joined_sub[, feats_name_cat]
+    
+    
     # normalize numeric variables
     myproc_scaler_center <- caret::preProcess(joined_num, method=c("scale", "center"))
     # myproc_range <- caret::preProcess(joined_num, method=c("range"))
@@ -55,51 +60,46 @@ joined_cat <- joined_sub[, feats_name_cat]
     joined_num_scale_center <- cbind(id=joined_sub$id, predict(myproc_scaler_center, joined_num))
     # joined_num_rng <- cbind(id=joined_sub$id, predict(myproc_range, joined_num))
     # joined_num <- cbind(id=joined_sub$id, joined_num)
-
-
-# gather all numeric features into feature_name / column format
-feats_num <- tidyr::gather(joined_num_scale_center[, c(feats_name_num, "id")], key=feature_name, value=value, -id) %>%
-    arrange(id)
-
-
-
-
-# writing loop to handle ALL feature / categoricals
-feats_cat <- data.frame()
-
-for(feat in feats_name_cat) {
     
-    # feat <- "tv_cat_latitude_five"
     
-    print(feat)
-    # isolate this feat
-    df_feats_ <- joined_sub[, c("id", feat)]
-    # assign(x = paste0("pos_values_", feat), value = as.character(unique(df_feats_[, 2])))
-    # df_feats_[, 2] <- paste0(feat, "_", as.character(df_feats_[, 2]))
+    # gather all numeric features into feature_name / column format
+    feats_num <- tidyr::gather(joined_num_scale_center[, c(feats_name_num, "id")], key=feature_name, value=value, -id) %>%
+        arrange(id)
     
-    df_feats_$value <- 1
-    names(df_feats_) <- c("id", "feature_name", "value")
-    feats_cat <- bind_rows(feats_cat, df_feats_)
     
-}
-
-gc()
-feats_cat <- feats_cat[!is.na(feats_cat$feature_name), ]
-feats_num <- feats_num[!is.na(feats_num$value), ]
-
-
-
-rm(joined, df_feats_, joined_cat, joined_num, joined_num_rng, joined_num_scale_center); gc()
-
-feats_all <- bind_rows(feats_num, feats_cat)
-rm(feats_cat, feats_num); gc()
-
-
-
-
-
-# I want lowest CV, holdout score, and submission
-
+    
+    
+    # writing loop to handle ALL feature / categoricals
+    feats_cat <- data.frame()
+    
+    for(feat in feats_name_cat) {
+        
+        # feat <- "tv_cat_latitude_five"
+        
+        print(feat)
+        # isolate this feat
+        df_feats_ <- joined_sub[, c("id", feat)]
+        # assign(x = paste0("pos_values_", feat), value = as.character(unique(df_feats_[, 2])))
+        # df_feats_[, 2] <- paste0(feat, "_", as.character(df_feats_[, 2]))
+        
+        df_feats_$value <- 1
+        names(df_feats_) <- c("id", "feature_name", "value")
+        feats_cat <- bind_rows(feats_cat, df_feats_)
+        
+    }
+    
+    gc()
+    feats_cat <- feats_cat[!is.na(feats_cat$feature_name), ]
+    feats_num <- feats_num[!is.na(feats_num$value), ]
+    
+    
+    
+    rm(joined, df_feats_, joined_cat, joined_num, joined_num_rng, joined_num_scale_center); gc()
+    
+    feats_all <- bind_rows(feats_num, feats_cat)
+    rm(feats_cat, feats_num); gc()
+    
+    
     # feature ids need to be at the "all" level
     gc()
     distinct_feats_all <- data.frame(feature_name = unique(feats_all$feature_name))
@@ -113,10 +113,19 @@ rm(feats_cat, feats_num); gc()
     setDF(feats_all)
     gc()
     
+    save(y, y_test, y_train, y_holdout, joined_sub, feats_all, file=file.path(GBL_PATH_TO_CACHE, "all_files_for_00_zil_baseline01.RData"))
+    
+    
+}
+
+
+    
+    
+####################################################################################
+    # CHECKPOINT pipeline
+    
     # load from checkpoint
-    # save(y, y_test, y_train, y_holdout, joined_sub, feats_all, 
-          # file=file.path(GBL_PATH_TO_CACHE, "all_files_for_00_zil_baseline01.RData"))
-    load(file="all_files_for_00_zil_baseline01.RData")
+    load(file=file.path(GBL_PATH_TO_CACHE, "all_files_for_00_zil_baseline01.RData"))
     gc()
     
     
@@ -217,18 +226,91 @@ rm(feats_cat, feats_num); gc()
     
     
     # construct dmats
-    x_dmt_train <- xgboost::xgb.DMatrix(x_train_sp, label=y_train$id)
-    x_dmt_holdout <- xgboost::xgb.DMatrix(x_holdout_sp, label=y_holdout$id)  # doesn't hurt to put the label on the holdout?
+    x_dmt_train <- xgboost::xgb.DMatrix(x_train_sp, label=y_train$logerror)
+    x_dmt_holdout <- xgboost::xgb.DMatrix(x_holdout_sp, label=y_holdout$logerror)  # doesn't hurt to put the label on the holdout?
     x_dmt_test <- xgboost::xgb.DMatrix(x_test_sp)
         
     
+    
 # this will likely be a grid search over a wide area of xgb parameters
 
+    
     # set up params search space and run it!
+    params <- list("objective" = "reg:linear", "eval_metric" = "mae",
+                   "eta" = 0.01, 
+                   "max_depth" = 6, 
+                   "subsample" = 0.7, 
+                   "colsample_bytree" = 0.6,
+                   # "lambda" = 1.0, 
+                   # "min_child_weight" = 6, 
+                   # "gamma" = 10,
+                   "alpha" = 1.0, 
+                   "nthread" = 6)     
+    
+    x_cv <- xgboost::xgb.cv(
+        data=x_dmt_train,
+        params=params,
+        nrounds=10000,
+        nfold=7,
+        early_stopping_rounds=50
+    )
+    
+    min(x_cv$evaluation_log$test_mae_mean)
+    which.min(x_cv$evaluation_log$test_mae_mean)
+    
+    myxgb <- xgboost::xgboost(
+        data=x_dmt_train,
+        params=params,
+        nrounds=638
+    )
+    
+    yhat_holdout <- predict(myxgb, x_holdout_sp)
+    y_holdout$yhat <- yhat_holdout
+    mean(abs(y_holdout$logerror - y_holdout$yhat))
+    y_train$yhat <- predict(myxgb, x_train_sp)
+    y_test$yhat <- predict(myxgb, x_test_sp)
+    
+    # generate subs
+    sub <- bind_rows(
+            select(y_test, ParcelId=id, `201610`=yhat),
+            select(y_train, ParcelId=id, `201610`=logerror),
+            select(y_holdout, ParcelId=id, `201610`=yhat)
+        ) %>%
+        mutate(
+            `201611`=`201610`,
+            `201612`=`201610`,
+            `201710`=`201610`,
+            `201711`=`201610`,
+            `201712`=`201610`
+            )
+        
+    
+    sub$ParcelId <- gsub("pid_", "", sub$ParcelId)
+    head(sub$ParcelId)
+    
+    write.csv(sub, "../subs/sub_baseline_001.csv", row.names = F)
+    head(sub)
+    # baseline001. xgboost. cv=0.06916229; holdout=0.065937; PLB=0.0655428
+    
+    #' solid! these scores are pretty terrible, but at least they are all
+    #' tracking well together. That is good that holdout and public leader
+    #' board scores are so close. CV is lacking a bit but that is to be
+    #' expected. Tradeoffs.
+    #' 
+    #' Next, I'd like to see if we can improve THIS submission at all by 
+    #' training three separate models for month 10, 11, 12, respectively.
+    #' Then we can predict the months separately as opposed to just building
+    #' one giant generalized model.
     
     
-
-
-
-
-
+    
+###############################################################################
+    # CHECKPOINT
+    list.files('../input')
+        
+    
+    
+    
+    
+    
+    
