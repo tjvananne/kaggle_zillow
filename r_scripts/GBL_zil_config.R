@@ -3,6 +3,7 @@
 # GBL_config
 print("loading GBL_zil_config file")
 
+library(Matrix)
 library(Hmisc)
 library(assertthat)
 library(data.table)
