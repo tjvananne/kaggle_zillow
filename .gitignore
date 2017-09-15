@@ -12,3 +12,8 @@ input/*.csv
 # these things that get created when unzipping csvs
 *_MACOSX*
 
+
+# these are generally large "checkpoint" files that I don't want in github
+cache/*.rds
+cache/*.RData
+

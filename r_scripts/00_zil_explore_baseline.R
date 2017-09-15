@@ -12,7 +12,7 @@ getwd()
 source('GBL_zil_config.R')
 source('GBL_zil_function_defs.R')
 
-rebuild1 <- FALSE
+rebuild1 <- T
 
 if(rebuild1) {
     # THIS WAS A CHECKPOINT from the preprocessing file
@@ -39,7 +39,6 @@ if(rebuild1) {
     y_holdout <- y_train[sample(1:nrow(y_train), size = ceiling(0.15 * nrow(y_train))), ]
     y_train <- y_train[!y_train$id %in% y_holdout$id, ]
     
-    # save(y, y_test, y_train, y_holdout, joined_sub, file=file.path(GBL_PATH_TO_CACHE, "y_values_00_zil_baseline01.RData"))
     gc()
     
     assert_that(!any(y_train$id %in% y_holdout$id))
@@ -124,9 +123,20 @@ if(rebuild1) {
 ####################################################################################
     # CHECKPOINT pipeline
     
+    setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+    getwd()
+    # "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
+    
+    
+    # source in config and function defs
+    source('GBL_zil_config.R')
+    source('GBL_zil_function_defs.R')
+
     # load from checkpoint
     load(file=file.path(GBL_PATH_TO_CACHE, "all_files_for_00_zil_baseline01.RData"))
     gc()
+    
+    
     
     
     # split back into groups
