@@ -12,7 +12,7 @@ getwd()
 source('GBL_zil_config.R')
 source('GBL_zil_function_defs.R')
 
-rebuild1 <- T
+rebuild1 <- F
 
 if(rebuild1) {
     # THIS WAS A CHECKPOINT from the preprocessing file
@@ -307,19 +307,93 @@ if(rebuild1) {
     #' board scores are so close. CV is lacking a bit but that is to be
     #' expected. Tradeoffs.
     #' 
+    
+    
+    
+###############################################################################
+    
+    # three different models for three different months
+    
     #' Next, I'd like to see if we can improve THIS submission at all by 
     #' training three separate models for month 10, 11, 12, respectively.
     #' Then we can predict the months separately as opposed to just building
     #' one giant generalized model.
     
     
+    # CHECKPOINT pipeline
     
-###############################################################################
-    # CHECKPOINT
-    list.files('../input')
+    setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+    getwd()
+    # "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
+    
+    
+    # source in config and function defs
+    source('GBL_zil_config.R')
+    source('GBL_zil_function_defs.R')
+    
+    # load from checkpoint
+    load(file=file.path(GBL_PATH_TO_CACHE, "all_files_for_00_zil_baseline01.RData"))
+    gc()
+    
         
+    # first step: determine how to figure out how to separate them into the three months they're closest to
+    tdates <- joined_sub$transactiondate[!is.na(joined_sub$transactiondate)]
+    tdates <- lubridate::ymd(tdates)
+    min(tdates); max(tdates)
     
     
+    
+    joined_sub$transactiondate <- lubridate::ymd(joined_sub$transactiondate)   
+    
+    
+    joined_sub_10 <- joined_sub %>% 
+        filter(transactiondate >= ymd('2016-10-01')) %>%
+        filter(transactiondate <= ymd('2016-10-31'))
+    
+    joined_sub_11 <- joined_sub %>%
+        filter(transactiondate >= ymd('2016-11-01')) %>%
+        filter(transactiondate <= ymd('2016-11-30'))
+    
+    joined_sub_12 <- joined_sub %>%
+        filter(transactiondate >= ymd('2016-12-01')) %>%
+        filter(transactiondate <= ymd('2016-12-31'))
+    
+    
+    # set up params search space and run it
+    params <- list("objective" = "reg:linear", "eval_metric" = "mae",
+                   "eta" = 0.01, 
+                   "max_depth" = 6, 
+                   "subsample" = 0.7, 
+                   "colsample_bytree" = 0.6,
+                   # "lambda" = 1.0, 
+                   # "min_child_weight" = 6, 
+                   # "gamma" = 10,
+                   "alpha" = 1.0, 
+                   "nthread" = 6)     
+    
+    
+    # train with this, predict with this plus everything else?
+    feats_all_10 <- feats_all %>%
+        filter(id %in% joined_sub_10$id)
+    
+    
+    
+    x_cv <- xgboost::xgb.cv(
+        data=x_dmt_train,
+        params=params,
+        nrounds=10000,
+        nfold=7,
+        early_stopping_rounds=50
+    )
+    
+    min(x_cv$evaluation_log$test_mae_mean)
+    which.min(x_cv$evaluation_log$test_mae_mean)
+    
+    myxgb <- xgboost::xgboost(
+        data=x_dmt_train,
+        params=params,
+        nrounds=638
+    )
     
     
     
