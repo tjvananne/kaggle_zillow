@@ -18,7 +18,9 @@ library(assertthat)
 library(lubridate)
 
 
-GBL_PATH_TO_DATA <- '../input'
-GBL_PATH_TO_CACHE <- '../cache'
+# list.files("input")
+
+GBL_PATH_TO_DATA <- 'input'
+GBL_PATH_TO_CACHE <- 'cache'
 
 

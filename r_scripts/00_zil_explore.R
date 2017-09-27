@@ -8,14 +8,14 @@
 
 
 
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-getwd()
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+#getwd()
 # "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
 
 
 # source in config and function defs
-source('GBL_zil_config.R')
-source('GBL_zil_function_defs.R')
+source('r_scripts/GBL_zil_config.R')
+source('r_scripts/GBL_zil_function_defs.R')
 
 recalculate_features <- FALSE
 if(recalculate_features) {
@@ -48,8 +48,8 @@ if(recalculate_features) {
 
 
     # reset
-    joined_filepath <- file.path(GBL_PATH_TO_DATA, 'joined.rds')
-    saveRDS(joined, joined_filepath) 
+    # joined_filepath <- file.path(GBL_PATH_TO_DATA, 'joined.rds')
+    # saveRDS(joined, joined_filepath) 
     
     
     # one by one feature analysis:
@@ -64,56 +64,80 @@ if(recalculate_features) {
     
     
     # basementsqft is integer, that is fine
-        # this is great... taking the log helps normalize quite a bit
-        # hist(joined$basementsqft, col='light blue', breaks=30)
-        # hist(log(joined$basementsqft), col='light blue', breaks=30)
+        hist(joined$basementsqft, col='light blue', breaks=30)
+        hist(log(joined$basementsqft + 100), col='light blue', breaks=30)
+        hist(scale(log(joined$basementsqft + 100)), col='light blue', breaks=30)
+        moments::skewness(joined$basementsqft, na.rm=T)
+        moments::skewness(log(joined$basementsqft), na.rm=T)
+        moments::skewness(log(joined$basementsqft + 100), na.rm=T)  #<-- 100 is magic skewness minimizing constant
     # create 5-class category; rename numeric; log the original; remove original
     joined$tv_cat_basementsqft <- cut2_rename(joined$basementsqft, 5, "tv_cat_basementsqft")
-    joined$tv_reg_basementsqft <- joined$basementsqft
-    joined$tv_logreg_basementsqft <- log(joined$basementsqft)
+    joined$tv_rawreg_basementsqft <- joined$basementsqft
+    joined$tv_logreg_basementsqft <- log(joined$basementsqft + 100)
+        quantile(joined$basementsqft, seq(.8, 1, 0.005), na.rm=T) 
+        sum(joined$basementsqft >= quantile(joined$basementsqft, .995, na.rm=T), na.rm=T) # <-- check for how many extreme outliers we have
+        assert_that(sum(is.na(joined$basementsqft)) == sum(is.na(joined$tv_cat_basementsqft)))
+        assert_that(sum(is.na(joined$basementsqft)) == sum(is.na(joined$tv_logreg_basementsqft)))
+        assert_that(sum(is.na(joined$basementsqft)) == sum(is.na(joined$tv_rawreg_basementsqft)))
     joined$basementsqft <- NULL
     
+        
     
     
     # bathroomcnt
         hist(joined$bathroomcnt, col='light blue')
-        hist(log(joined$bathroomcnt + 1), col='light blue')
+        hist(log(joined$bathroomcnt), col='light blue')
+        hist(scale(log(joined$bathroomcnt + 3.6)), col='light green')
+        moments::skewness(joined$bathroomcnt, na.rm=T)
+        moments::skewness(log(joined$bathroomcnt + 3.6), na.rm=T) # <-- 3.6 magic skewness minimizer
     # create "has_halfbath" feature
     joined$tv_cat_has_halfbath <- as.integer(joined$bathroomcnt %% 1 == 0.5)
     joined$tv_cat_has_halfbath <- paste0("tv_cat_has_halfbath_", as.character(joined$tv_cat_has_halfbath))
     joined$tv_cat_has_halfbath[grepl("_NA$", joined$tv_cat_has_halfbath)] <- NA
-    sum(is.na(joined$tv_cat_has_halfbath))
-    # 5-cat; rename numeric; log original; remove original
-    # joined$tv_cat_count_toilets <- cut2_rename(joined$bathroomcnt, 5, "tv_cat_count_toilets")
     joined$tv_cat_count_toilets <- cut2(ceiling(joined$bathroomcnt), cuts = c(
         min(ceiling(joined$bathroomcnt), na.rm=T), 1, 2, 3, 4, 5, max(ceiling(joined$bathroomcnt), na.rm=T)))
     joined$tv_cat_count_toilets <- as.numeric(joined$tv_cat_count_toilets)
     joined$tv_cat_count_toilets <- paste0("tv_cat_count_toilets_", as.character(joined$tv_cat_count_toilets))
     joined$tv_cat_count_toilets[grepl("_NA$", joined$tv_cat_count_toilets)] <- NA
-        sum(is.na(joined$tv_cat_count_toilets))
         table(joined$tv_cat_count_toilets)
-    joined$tv_reg_bathroomcnt <- joined$bathroomcnt
-    joined$tv_logreg_bathroomcnt <- log(joined$bathroomcnt + 1)
+    # joined$tv_rawreg_bathroomcnt <- joined$bathroomcnt
+    joined$tv_logreg_bathroomcnt <- log(joined$bathroomcnt + 3.6)
+    joined$tv_rawreg_bathroomcnt <- joined$bathroomcnt
+        assert_that(sum(is.na(joined$tv_logreg_bathroomcnt)) == sum(is.na(joined$bathroomcnt)))
+        assert_that(sum(is.na(joined$tv_cat_count_toilets)) == sum(is.na(joined$bathroomcnt)))
+        assert_that(sum(is.na(joined$tv_logreg_bathroomcnt)) == sum(is.na(joined$bathroomcnt)))
+        assert_that(sum(is.na(joined$tv_rawreg_bathroomcnt)) == sum(is.na(joined$bathroomcnt)))
     joined$bathroomcnt <- NULL
     
+    
+   
     
     
     # bedroomcnt
         hist(joined$bedroomcnt, col='light blue')
-        hist(log(joined$bedroomcnt + 1), col='light blue')
-    # create binned categorical bedroom count
-    # joined$tv_cat_bedroomcnt <- cut2_rename(joined$bedroomcnt, 5, "tv_cat_bedroomcnt")
+        hist(log(joined$bedroomcnt + 1), col='light blue', breaks=20)
+        hist(scale(log(joined$bedroomcnt + 15)), col='light green')
+        moments::skewness(joined$bedroomcnt, na.rm=T)
+        moments::skewness(log(joined$bedroomcnt + 1), na.rm=T)
+        moments::skewness(log(joined$bedroomcnt + 15), na.rm=T) # <-- 15 is the magic skewness minimizer
+        summary(joined$bedroomcnt)
+        summary(log(joined$bedroomcnt + 1))
+        summary(scale(log(joined$bedroomcnt + 2)))
+    # joined$tv_cat_bedroomcnt <- cut2_rename(joined$bedroomcnt, 5, "tv_cat_bedroomcnt")  #<-- wanted this to be manual
     joined$tv_cat_bedroomcnt <- cut2(joined$bedroomcnt, cuts = c(
         min(joined$bedroomcnt, na.rm=T), 1, 2, 3, 4, 5, max(joined$bedroomcnt, na.rm=T)))
     joined$tv_cat_bedroomcnt <- as.numeric(joined$tv_cat_bedroomcnt)
     joined$tv_cat_bedroomcnt <- paste0("tv_cat_bedroomcnt_", as.character(joined$tv_cat_bedroomcnt))
     joined$tv_cat_bedroomcnt[grepl("_NA$", joined$tv_cat_bedroomcnt)] <- NA
-        sum(is.na(joined$tv_cat_bedroomcnt))
         table(joined$tv_cat_bedroomcnt)
-    joined$tv_reg_bedroomcnt <- joined$bedroomcnt
-    joined$tv_logreg_bedroomcnt <- log(joined$bedroomcnt + 1)
+    joined$tv_rawreg_bedroomcnt <- joined$bedroomcnt
+    joined$tv_logreg_bedroomcnt <- log(joined$bedroomcnt + 15)
+        assert_that(sum(is.na(joined$tv_cat_bedroomcnt)) == sum(is.na(joined$bedroomcnt)))
+        assert_that(sum(is.na(joined$tv_rawreg_bedroomcnt)) == sum(is.na(joined$bedroomcnt)))
+        assert_that(sum(is.na(joined$tv_logreg_bedroomcnt)) == sum(is.na(joined$bedroomcnt)))
     joined$bedroomcnt <- NULL
     
+        
     
     
     # calulatedbathnbr -- more missing values than other bathrm number ignore for now
@@ -125,65 +149,107 @@ if(recalculate_features) {
     
     # finishedfloor1squarefeet -- this one has some serious detail, lets make two cats and one reg
         hist(joined$finishedfloor1squarefeet, col='light blue')
-        hist(log(joined$finishedfloor1squarefeet + 500), col='light blue')  # 500 shift to improve normalcy
+        hist(log(joined$finishedfloor1squarefeet + 259), col='light blue')  # 500 shift to improve normalcy
+        min(joined$finishedfloor1squarefeet, na.rm=T)
+        summary(scale(log(joined$finishedfloor1squarefeet + 259)))
+        moments::skewness(log(joined$finishedfloor1squarefeet + 259), na.rm=T)
     # make features
     joined$tv_cat_finflr1_five <- cut2_rename(joined$finishedfloor1squarefeet, 5, "tv_cat_finflr1_five")
     joined$tv_cat_finflr1_ten <- cut2_rename(joined$finishedfloor1squarefeet, 10, "tv_cat_finflr1_ten")    
-    joined$tv_reg_finflr1 <- joined$finishedfloor1squarefeet
-    joined$tv_logreg_finflr1 <- log(joined$finishedfloor1squarefeet + 500)
+    joined$tv_rawreg_finflr1 <- joined$finishedfloor1squarefeet
+    joined$tv_logreg_finflr1 <- log(joined$finishedfloor1squarefeet + 259)
+        assert_that(sum(is.na(joined$tv_cat_finflr1_five)) == sum(is.na(joined$finishedfloor1squarefeet)))
+        assert_that(sum(is.na(joined$tv_cat_finflr1_ten)) == sum(is.na(joined$finishedfloor1squarefeet)))
+        assert_that(sum(is.na(joined$tv_rawreg_finflr1)) == sum(is.na(joined$finishedfloor1squarefeet)))
+        assert_that(sum(is.na(joined$tv_logreg_finflr1)) == sum(is.na(joined$finishedfloor1squarefeet)))
     joined$finishedfloor1squarefeet <- NULL
+    
+    
+    
     
     
     # calculatedfinishedsquarefeet
         hist(joined$calculatedfinishedsquarefeet, col='light blue')
-        hist(log(joined$calculatedfinishedsquarefeet), col='light blue')        
+        hist(log(joined$calculatedfinishedsquarefeet), col='light blue') 
+        min(joined$calculatedfinishedsquarefeet, na.rm=T)
+        sum(joined$calculatedfinishedsquarefeet < 1000, na.rm=T)
+        moments::skewness(log(joined$calculatedfinishedsquarefeet), na.rm=T)  # <-- can't reduce skew by adding a constant
     # make features
     joined$tv_cat_totsqft_five <- cut2_rename(joined$calculatedfinishedsquarefeet, 5, "tv_cat_totsqft_five")
     joined$tv_cat_totsqft_ten <- cut2_rename(joined$calculatedfinishedsquarefeet, 10, "tv_cat_totsqft_ten")        
-    joined$tv_reg_totsqft <- joined$calculatedfinishedsquarefeet
+    joined$tv_rawreg_totsqft <- joined$calculatedfinishedsquarefeet
     joined$tv_logreg_totsqft <- log(joined$calculatedfinishedsquarefeet)
+        assert_that(sum(is.na(joined$calculatedfinishedsquarefeet)) == sum(is.na(joined$tv_cat_totsqft_five)))
+        assert_that(sum(is.na(joined$calculatedfinishedsquarefeet)) == sum(is.na(joined$tv_cat_totsqft_ten)))
+        assert_that(sum(is.na(joined$calculatedfinishedsquarefeet)) == sum(is.na(joined$tv_rawreg_totsqft)))
+        assert_that(sum(is.na(joined$calculatedfinishedsquarefeet)) == sum(is.na(joined$tv_logreg_totsqft)))
     joined$calculatedfinishedsquarefeet <- NULL
+    
+    
     
     
     # finishedsquarefeet12
         hist(joined$finishedsquarefeet12, col='light blue')
         hist(log(joined$finishedsquarefeet12), col='light blue')
+        min(joined$finishedsquarefeet12, na.rm=T)
+        summary(joined$finishedsquarefeet12)
+        moments::skewness(log(joined$finishedsquarefeet12), na.rm=T)
+        moments::skewness(log(joined$finishedsquarefeet12 + 1), na.rm=T)  # <-- can't minimize skewness by adding a constant
     # make features
     joined$tv_cat_finsqft12_five <- cut2_rename(joined$finishedsquarefeet12, 5, "tv_cat_finsqft12_five")
     joined$tv_cat_finsqft12_ten <- cut2_rename(joined$finishedsquarefeet12, 10, "tv_cat_finsqft12_ten")
-    joined$tv_reg_finsqft12 <- joined$finishedsquarefeet12    
+    joined$tv_cat_finsqft12_twenty <- cut2_rename(joined$finishedsquarefeet12, 20, "tv_cat_finsqft12_twenty")
+    joined$tv_rawreg_finsqft12 <- joined$finishedsquarefeet12    
     joined$tv_logreg_finsqft12 <- log(joined$finishedsquarefeet12)
+        assert_that(sum(is.na(joined$tv_cat_finsqft12_five)) == sum(is.na(joined$finishedsquarefeet12)))
+        assert_that(sum(is.na(joined$tv_cat_finsqft12_ten)) == sum(is.na(joined$finishedsquarefeet12)))
+        assert_that(sum(is.na(joined$tv_rawreg_finsqft12)) == sum(is.na(joined$finishedsquarefeet12)))
+        assert_that(sum(is.na(joined$tv_logreg_finsqft12)) == sum(is.na(joined$finishedsquarefeet12)))
     joined$finishedsquarefeet12 <- NULL
+    
+    
+    
     
     
     # finishedsquarefeet13
         hist(joined$finishedsquarefeet13, col='light blue')
-        # hist(log(joined$finishedsquarefeet13), col='light blue')  # <-- don't make log
-    # make features
+        hist(log(joined$finishedsquarefeet13), col='light blue')  # <-- don't make log, this makes skew worse
+        moments::skewness(joined$finishedsquarefeet13, na.rm=T)
+        moments::skewness(log(joined$finishedsquarefeet13), na.rm=T)    
+    # make features - not enough density to create a ten-category feature
     joined$tv_cat_finsqft13_five <- cut2_rename(joined$finishedsquarefeet13, 5, "tv_cat_finsqft13_five")
-    joined$tv_cat_finsqft13_ten <- cut2_rename(joined$finishedsquarefeet13, 10, "tv_cat_finsqft13_ten")
-    joined$tv_reg_finsqft13 <- joined$finishedsquarefeet13    
+    joined$tv_rawreg_finsqft13 <- joined$finishedsquarefeet13    
     joined$finishedsquarefeet13 <- NULL    
     
     
+    
+    
     # finishedsquarefeet15
-        hist(joined$finishedsquarefeet15, col='light blue')
-        hist(log(joined$finishedsquarefeet15), col='light blue')
+        hist(joined$finishedsquarefeet15, col='light blue', breaks=50)
+        hist(log(joined$finishedsquarefeet15 - 111), col='light blue', breaks=50)
+        min(joined$finishedsquarefeet15, na.rm=T)
+        moments::skewness(log(joined$finishedsquarefeet15), na.rm=T)
+        moments::skewness(log(joined$finishedsquarefeet15 - 111), na.rm=T)
     # make features
     joined$tv_cat_finsqft15_five <- cut2_rename(joined$finishedsquarefeet15, 5, "tv_cat_finsqft15_five")
     joined$tv_cat_finsqft15_ten <- cut2_rename(joined$finishedsquarefeet15, 10, "tv_cat_finsqft15_ten")    
-    joined$tv_reg_finsqft15 <- joined$finishedsquarefeet15
-    joined$tv_logreg_finsqft15 <- log(joined$finishedsquarefeet15)
+    joined$tv_rawreg_finsqft15 <- joined$finishedsquarefeet15
+    joined$tv_logreg_finsqft15 <- log(joined$finishedsquarefeet15 - 111)
+        assert_that(sum( is.infinite(joined$tv_logreg_finsqft15) | is.nan(joined$tv_logreg_finsqft15)) == 0)
     joined$finishedsquarefeet15 <- NULL
+    
+    
     
     # finishedsquarefeet50
         hist(joined$finishedsquarefeet50, col='light blue')
-        hist(log(joined$finishedsquarefeet50 + 250), col='light blue')
+        hist(log(joined$finishedsquarefeet50 + 211), col='light blue')
+        moments::skewness(log(joined$finishedsquarefeet50), na.rm=T)
+        moments::skewness(log(joined$finishedsquarefeet50 + 211), na.rm=T)
     # make features
     joined$tv_cat_finsqft50_five <- cut2_rename(joined$finishedsquarefeet50, 5, "tv_cat_finsqft50_five")
     joined$tv_cat_finsqft50_ten <- cut2_rename(joined$finishedsquarefeet50, 10, "tv_cat_finsqft50_ten")
-    joined$tv_reg_finsqft50 <- joined$finishedsquarefeet50
-    joined$tv_logreg_finsqft50 <- log(joined$finishedsquarefeet50 + 250)
+    joined$tv_rawreg_finsqft50 <- joined$finishedsquarefeet50
+    joined$tv_logreg_finsqft50 <- log(joined$finishedsquarefeet50 + 211)
     joined$finishedsquarefeet50 <- NULL
     
     
@@ -191,11 +257,13 @@ if(recalculate_features) {
     # finishedsquarefeet6
         hist(joined$finishedsquarefeet6, col='light blue')
         hist(log(joined$finishedsquarefeet6), col='light blue', breaks=80)
+        hist(log(joined$finishedsquarefeet6 + 72), col='light green', breaks=80)
+        moments::skewness(log(joined$finishedsquarefeet6 + 72), na.rm=T)
     # make features
     joined$tv_cat_finsqft6_five <- cut2_rename(joined$finishedsquarefeet6, 5, "tv_cat_finsqft6_five")
-    joined$tv_cat_finsqft6_ten <- cut2_rename(joined$finishedsquarefeet6, 10, "tv_cat_finsqft6_ten")    
-    joined$tv_reg_finsqft6 <- joined$finishedsquarefeet6
-    joined$tv_logreg_finsqft6 <- log(joined$finishedsquarefeet6)
+    # joined$tv_cat_finsqft6_ten <- cut2_rename(joined$finishedsquarefeet6, 10, "tv_cat_finsqft6_ten")  #  not enough density
+    joined$tv_rawreg_finsqft6 <- joined$finishedsquarefeet6
+    joined$tv_logreg_finsqft6 <- log(joined$finishedsquarefeet6 + 72)
     joined$finishedsquarefeet6 <- NULL
         
     
@@ -205,31 +273,37 @@ if(recalculate_features) {
     joined$tv_cat_fips <- paste0("fips_", as.character(joined$fips))
     joined$tv_cat_fips[joined$tv_cat_fips == "fips_NA"] <- NA
         table(joined$tv_cat_fips); sum(is.na(joined$tv_cat_fips))
-        sum(is.na(joined$tv_cat_fips))
+        assert_that(sum(is.na(joined$fips)) == sum(is.na(joined$tv_cat_fips)))
     joined$fips <- NULL
+    
+    
     
     
     # fireplacecnt
     # min is 1, should we assume NAs are zeros? I don't think we can make that assumption? 
         hist(joined$fireplacecnt, col='light blue', breaks=70)
-        hist(log(joined$fireplacecnt + 1000), col='light blue', breaks=70)
+        hist(log(joined$fireplacecnt), col='light blue', breaks=70)
+        moments::skewness(joined$fireplacecnt, na.rm=T)
+        moments::skewness(log(joined$fireplacecnt + 1), na.rm=T)
         table(joined$fireplacecnt); sum(is.na(joined$fireplacecnt))
     # there are no zeros, let's assume zero if NA?
     joined$tv_cat_fireplacecnt <- ifelse(is.na(joined$fireplacecnt), 0, joined$fireplacecnt)
     joined$tv_cat_fireplacecnt <- cut2(joined$tv_cat_fireplacecnt, cuts = c(
-        min(joined$tv_cat_fireplacecnt, na.rm=T), 1, 2, 3, 4, max(joined$tv_cat_fireplacecnt, na.rm=T)))
+        min(joined$tv_cat_fireplacecnt, na.rm=T), 1, 2, 3, max(joined$tv_cat_fireplacecnt, na.rm=T)))
         table(joined$tv_cat_fireplacecnt); sum(is.na(joined$tv_cat_fireplacecnt))
     joined$tv_cat_fireplacecnt <- as.numeric(joined$tv_cat_fireplacecnt)
     joined$tv_cat_fireplacecnt <- paste0("tv_cat_fireplacecnt_", as.character(joined$tv_cat_fireplacecnt))
     joined$tv_cat_fireplacecnt[grepl("_NA$", joined$tv_cat_fireplacecnt)] <- NA
         sum(is.na(joined$tv_cat_fireplacecnt))
         table(joined$tv_cat_fireplacecnt)
-    joined$tv_reg_fireplacecnt <- ifelse(is.na(joined$fireplacecnt), 0, joined$fireplacecnt)
-        table(joined$tv_reg_fireplacecnt)    
-    joined$tv_logreg_fireplacecnt <- log(joined$tv_reg_fireplacecnt + 1)    
+    joined$tv_rawreg_fireplacecnt <- ifelse(is.na(joined$fireplacecnt), 0, joined$fireplacecnt)
+        table(joined$tv_rawreg_fireplacecnt)    
+    joined$tv_logreg_fireplacecnt <- log(joined$tv_rawreg_fireplacecnt + 1)    
         min(joined$tv_logreg_fireplacecnt)
         table(joined$tv_logreg_fireplacecnt)
     joined$fireplacecnt <- NULL
+    
+    
     
     
     # full bath cnt -- Remove, this will just muddy the water
@@ -239,23 +313,30 @@ if(recalculate_features) {
     joined$fullbathcnt <- NULL
     
     
+    
+    
     # garagecarcnt -- I want to manually do the groupings here to include "0" count category
-        hist(joined$garagecarcnt, col='light blue')
-        hist(log(joined$garagecarcnt + 1), col='light blue')
-    sum(is.na(joined$garagecarcnt))  # 2.1 Mil NAs
-    min(joined$garagecarcnt, na.rm=T) # 0 -- don't assume NA are zero
+        hist(joined$garagecarcnt, col='light blue', breaks=40)
+        hist(log(joined$garagecarcnt + 1), col='light blue', breaks=40)
+        hist(log(joined$garagecarcnt + 5), col='light blue', breaks=40)
+        sum(is.na(joined$garagecarcnt))  # 2.1 Mil NAs
+        min(joined$garagecarcnt, na.rm=T) # 0 -- don't assume NA are zero
+        moments::skewness(joined$garagecarcnt, na.rm=T)
+        moments::skewness(log(joined$garagecarcnt + 5), na.rm=T)
     quantile(joined$garagecarcnt, seq(0, 1, 0.2), na.rm=T)
     joined$tv_cat_garagecarcnt <- cut2(joined$garagecarcnt, cuts = c(
-        min(joined$garagecarcnt, na.rm=T), 1, 2, 3, 4, 5, max(joined$garagecarcnt, na.rm=T)))
+        min(joined$garagecarcnt, na.rm=T), 1, 2, 3, 4, max(joined$garagecarcnt, na.rm=T)))
+        table(joined$tv_cat_garagecarcnt)
         levels(joined$tv_cat_garagecarcnt)
     joined$tv_cat_garagecarcnt <- as.numeric(joined$tv_cat_garagecarcnt)
     joined$tv_cat_garagecarcnt <- paste0("tv_cat_garagecarcnt_", as.character(joined$tv_cat_garagecarcnt))
     joined$tv_cat_garagecarcnt[grepl("_NA$", joined$tv_cat_garagecarcnt)] <- NA
         sum(is.na(joined$tv_cat_garagecarcnt))  # 2.1 Mil NAs -- good
         table(joined$tv_cat_garagecarcnt)
-    joined$tv_reg_garagecarcnt <- joined$garagecarcnt
-    joined$tv_logreg_garagecarcnt <- log(joined$garagecarcnt + 1)
+    joined$tv_rawreg_garagecarcnt <- joined$garagecarcnt
+    joined$tv_logreg_garagecarcnt <- log(joined$garagecarcnt + 5)
     joined$garagecarcnt <- NULL
+    
     
     
     
@@ -263,11 +344,13 @@ if(recalculate_features) {
         sum(is.na(joined$garagetotalsqft))  # 2.1 Mil NAs
         min(joined$garagetotalsqft, na.rm=T) # 0 -- don't assume NAs are zero
         hist(joined$garagetotalsqft, col='light blue', breaks = 50)
-        hist(log(joined$garagetotalsqft + 100), col='light blue', breaks = 50)
+        hist(log(joined$garagetotalsqft + 3660), col='light blue', breaks = 50)
+        moments::skewness(log(joined$garagetotalsqft + 1), na.rm=T)
+        moments::skewness(log(joined$garagetotalsqft + 3660), na.rm=T)
     joined$tv_cat_garagetotalsqft_five <- cut2_rename(joined$garagetotalsqft, 5, "tv_cat_garagetotalsqft_five")
     joined$tv_cat_garagetotalsqft_ten <- cut2_rename(joined$garagetotalsqft, 10, "tv_cat_garagetotalsqft_ten")
-    joined$tv_reg_garagetotalsqft <- joined$garagetotalsqft
-    joined$tv_logreg_garagetotalsqft <- log(joined$garagetotalsqft + 100)
+    joined$tv_rawreg_garagetotalsqft <- joined$garagetotalsqft
+    joined$tv_logreg_garagetotalsqft <- log(joined$garagetotalsqft + 3660)
     joined$garagetotalsqft <- NULL
     
     
@@ -275,7 +358,7 @@ if(recalculate_features) {
     # hashottuborspa  -- "" or "true"
     joined$tv_cat_has_hottub <- as.integer(joined$hashottuborspa == 'true')
         table(joined$tv_cat_has_hottub)
-        sum(is.na(joined$tv_cat_has_hottub))
+        sum(is.na(joined$tv_cat_has_hottub)); sum(is.na(joined$hashottuborspa))
     joined$tv_cat_has_hottub <- paste0("tv_cat_has_hottub_", as.character(joined$tv_cat_has_hottub))
     table(joined$tv_cat_has_hottub)
     joined$hashottuborspa <- NULL
@@ -290,6 +373,7 @@ if(recalculate_features) {
         hist(joined$latitude, col='light blue')
         sum(is.na(joined$longitude))
         hist(joined$longitude, col='light blue')
+    # quantile groups
     # lat lon five
     joined$tv_cat_latitude_five <- as.character(as.numeric(cut2(joined$latitude, g=5)))
     joined$tv_cat_longitude_five <- as.character(as.numeric(cut2(joined$longitude, g=5)))
@@ -315,17 +399,52 @@ if(recalculate_features) {
     # lat long twenty
     joined$tv_cat_latitude_twenty <- as.character(as.numeric(cut2(joined$latitude, g=20)))
     joined$tv_cat_longitude_twenty <- as.character(as.numeric(cut2(joined$longitude, g=20)))
-    joined$tv_cat_latlong_twenty <- paste0("tv_cat_latlong_twenty_", joined$tv_cat_latitude_twenty, '_', joined$tv_cat_longitude_twenty)
-    table(joined$tv_cat_latlong_twenty)
-    joined$tv_cat_latlong_twenty[grepl("NA", joined$tv_cat_latlong_twenty)] <- NA
-    sum(is.na(joined$tv_cat_latlong_twenty))
+        # too many groups
+        # joined$tv_cat_latlong_twenty <- paste0("tv_cat_latlong_twenty_", joined$tv_cat_latitude_twenty, '_', joined$tv_cat_longitude_twenty)
+        # table(joined$tv_cat_latlong_twenty)
+        # joined$tv_cat_latlong_twenty[grepl("NA", joined$tv_cat_latlong_twenty)] <- NA
+        # sum(is.na(joined$tv_cat_latlong_twenty))
     joined$tv_cat_latitude_twenty <- ifelse(is.na(joined$tv_cat_latitude_twenty), NA, 
                                          paste0("tv_cat_latitude_twenty_", joined$tv_cat_latitude_twenty))
     joined$tv_cat_longitude_twenty <- ifelse(is.na(joined$tv_cat_longitude_twenty), NA,
                                           paste0("tv_cat_longitude_twenty_", joined$tv_cat_longitude_twenty))
+    table(joined$tv_cat_latlong_twenty)
+    
+    # equal interval binning - 10 groups
+    (latmax_ <- max(joined$latitude, na.rm=T))
+    (latmin_ <- min(joined$latitude, na.rm=T))
+    latcut_10_ <- seq(latmin_, latmax_, by=((latmax_ - latmin_) / 10))
+    joined$tv_cat_latitude_eib_10 <- as.character(as.numeric(cut2(joined$latitude, cuts=latcut_10_)))
+        table(joined$tv_cat_latitude_eib_10)
+    (lonmax_ <- max(joined$longitude/1000, na.rm=T))  # <-- division by 1000 for longitude to fix numeric precision issues
+    (lonmin_ <- min(joined$longitude/1000, na.rm=T))
+    loncut_10_ <- seq(lonmin_, lonmax_, by=((lonmax_ - lonmin_) / 10))
+    joined$tv_cat_longitude_eib_10 <- as.character(as.numeric(cut2(joined$longitude/1000, cuts=loncut_10_)))
+        table(joined$tv_cat_longitude_eib_10)
+    joined$tv_cat_latlong_eib_10 <- paste0("tv_cat_latlong_eib_10_", joined$tv_cat_latitude_eib_10, '_', joined$tv_cat_longitude_eib_10)
+    joined$tv_cat_latlong_eib_10[grepl("NA", joined$tv_cat_latlong_eib_10)] <- NA
+    joined$tv_cat_latitude_eib_10 <- ifelse(is.na(joined$tv_cat_latitude_eib_10), NA,
+                                            paste0("tv_cat_latitude_eib_10_", joined$tv_cat_latitude_eib_10))
+    joined$tv_cat_longitude_eib_10 <- ifelse(is.na(joined$tv_cat_longitude_eib_10), NA,
+                                             paste0("tv_cat_longitude_eib_10_", joined$tv_cat_longitude_eib_10))
+        assert_that(sum(is.na(joined$latitude)) == sum(is.na(joined$tv_cat_latitude_eib_10)))
+        assert_that(sum(is.na(joined$longitude)) == sum(is.na(joined$tv_cat_longitude_eib_10)))
+        assert_that(sum(is.na(joined$longitude) | sum(is.na(joined$latitude))) == sum(is.na(joined$tv_cat_latlong_eib_10)))
+    
+    tv_cat_latlong_eib_10_grp <- table(joined$tv_cat_latlong_eib_10) %>% data.frame()
+    remove_sparse_latlong_eib10 <- as.character(tv_cat_latlong_eib_10_grp$Var1[tv_cat_latlong_eib_10_grp$Freq < 10000])
+    joined$tv_cat_latlong_eib_10[joined$tv_cat_latlong_eib_10 %in% remove_sparse_latlong_eib10] <- NA
+    # I WAS RIGHT HERE 9/32/2017
+    
+    # equal interval binning - 20 groups
+    latcut_20_ <- seq(latmin_, latmax_, by=((latmax_ - latmin_) / 20))
+    
+    
+    
+    
     # regs
-    joined$tv_reg_latitude <- joined$latitude
-    joined$tv_reg_longitude <- joined$longitude
+    joined$tv_rawreg_latitude <- joined$latitude
+    joined$tv_rawreg_longitude <- joined$longitude
     
     joined$longitude <- NULL
     joined$latitude <- NULL
@@ -341,7 +460,7 @@ if(recalculate_features) {
     joined$tv_cat_lotsizesqft_five <- cut2_rename(joined$lotsizesquarefeet, 5, "tv_cat_lotsizesqft_five")
     joined$tv_cat_lotsizesqft_ten <- cut2_rename(joined$lotsizesquarefeet, 10, "tv_cat_lotsizesqft_ten")
     # regs
-    joined$tv_reg_lotsizesqft <- joined$lotsizesquarefeet
+    joined$tv_rawreg_lotsizesqft <- joined$lotsizesquarefeet
     joined$tv_logreg_lotsizesqft <- log(joined$lotsizesquarefeet, base=3)
     joined$lotsizesquarefeet <- NULL
     
@@ -360,7 +479,7 @@ if(recalculate_features) {
         hist(log(joined$poolsizesum + 500), col='red', breaks=50)
     joined$tv_cat_poolsize_five <- cut2_rename(joined$poolsizesum, 5, "tv_cat_poolsize_five")
     joined$tv_cat_poolsize_ten <- cut2_rename(joined$poolsizesum, 10, "tv_cat_poolsize_ten")
-    joined$tv_reg_poolsize <- joined$poolsizesum
+    joined$tv_rawreg_poolsize <- joined$poolsizesum
     joined$tv_logreg_poolsize <- log(joined$poolsizesum + 500)
     joined$poolsizesum <- NULL
         
@@ -392,7 +511,7 @@ if(recalculate_features) {
         quantile(joined$rawcensustractandblock, seq(0, 1, 0.1), na.rm=T)
     joined$tv_cat_rawcensus_five <- cut2_rename(joined$rawcensustractandblock, 5, "tv_cat_rawcensus_five")
     joined$tv_cat_rawcensus_twenty <- cut2_rename(joined$rawcensustractandblock, 20, "tv_cat_rawcensus_twenty")
-    joined$tv_reg_rawcensus <- joined$rawcensustractandblock
+    joined$tv_rawreg_rawcensus <- joined$rawcensustractandblock
     joined$rawcensustractandblock <- NULL
     
     
@@ -409,7 +528,7 @@ if(recalculate_features) {
                                     paste0("tv_cat_roomcnt_", as.character(joined$tv_cat_roomcnt)))
     table(joined$tv_cat_roomcnt)
     
-    joined$tv_reg_roomcnt <- joined$roomcnt
+    joined$tv_rawreg_roomcnt <- joined$roomcnt
     joined$tv_logreg_roomcnt <- log(joined$roomcnt + 1)
     joined$roomcnt <- NULL
     
@@ -434,7 +553,7 @@ if(recalculate_features) {
     unique(joined$tv_cat_unitcnt_three)
     table(joined$tv_cat_unitcnt_three)
     
-    joined$tv_reg_unitcnt <- joined$unitcnt
+    joined$tv_rawreg_unitcnt <- joined$unitcnt
     joined$tv_logreg_unitcnt <- log(joined$unitcnt)
     joined$unitcnt <- NULL
     
@@ -446,7 +565,7 @@ if(recalculate_features) {
     joined$tv_cat_yardbuildingsqft17_five 
     joined$tv_cat_yardbuildingsqft17_five <- cut2_rename(joined$yardbuildingsqft17, 5, "tv_cat_yardbuildingsqft17_five")
     joined$tv_cat_yardbuildingsqft17_ten <- cut2_rename(joined$yardbuildingsqft17, 10, "tv_cat_yardbuildingsqft17_ten")
-    joined$tv_reg_yardbuildingsqft17 <- joined$yardbuildingsqft17
+    joined$tv_rawreg_yardbuildingsqft17 <- joined$yardbuildingsqft17
     joined$tv_logreg_yardbuildingsqft17 <- log(joined$yardbuildingsqft17 + 20)
     joined$yardbuildingsqft17 <- NULL
     
@@ -456,7 +575,7 @@ if(recalculate_features) {
     hist(log(joined$yardbuildingsqft26), col='light blue')
     joined$tv_cat_yardbuildingsqft26_five <- cut2_rename(joined$yardbuildingsqft26, 5, "tv_cat_yardbuildingsqft26_five")
     joined$tv_cat_yardbuildingsqft26_ten <- cut2_rename(joined$yardbuildingsqft26, 10, "tv_cat_yardbuildingsqft26_ten")
-    joined$tv_reg_yardbuildingsqft26 <- joined$yardbuildingsqft26
+    joined$tv_rawreg_yardbuildingsqft26 <- joined$yardbuildingsqft26
     joined$tv_logreg_yardbuildingsqft26 <- log(joined$yardbuildingsqft26)
     joined$yardbuildingsqft26 <- NULL
     
@@ -464,14 +583,14 @@ if(recalculate_features) {
     # yearbuilt
     hist(joined$yearbuilt, col='light blue')
     max(joined$yearbuilt, na.rm=T) # max is 2015
-    joined$tv_reg_building_age <- 2015 - joined$yearbuilt
-    hist(joined$tv_reg_building_age, col='light blue')
-    hist(log(joined$tv_reg_building_age + 35), col='light blue')
-    joined$tv_logreg_building_age <- log(joined$tv_reg_building_age + 35)
-    quantile(joined$tv_reg_building_age, seq(0, 1, 0.2), na.rm=T)
+    joined$tv_rawreg_building_age <- 2015 - joined$yearbuilt
+    hist(joined$tv_rawreg_building_age, col='light blue')
+    hist(log(joined$tv_rawreg_building_age + 35), col='light blue')
+    joined$tv_logreg_building_age <- log(joined$tv_rawreg_building_age + 35)
+    quantile(joined$tv_rawreg_building_age, seq(0, 1, 0.2), na.rm=T)
 
-    joined$tv_cat_building_age_five <- cut2_rename(joined$tv_reg_building_age, 5, "tv_cat_building_age_five")
-    joined$tv_cat_building_age_ten <- cut2_rename(joined$tv_reg_building_age, 10, "tv_cat_building_age_ten")
+    joined$tv_cat_building_age_five <- cut2_rename(joined$tv_rawreg_building_age, 5, "tv_cat_building_age_five")
+    joined$tv_cat_building_age_ten <- cut2_rename(joined$tv_rawreg_building_age, 10, "tv_cat_building_age_ten")
     joined$yearbuilt <- NULL
     
     
@@ -507,7 +626,7 @@ if(recalculate_features) {
     # structuretaxvaluedollarcnt
     hist(joined$structuretaxvaluedollarcnt, col='light blue')
     hist(log(joined$structuretaxvaluedollarcnt + 100), col='light blue') # <-- so beautiful...
-    joined$tv_reg_structuretaxvalue <- joined$structuretaxvaluedollarcnt
+    joined$tv_rawreg_structuretaxvalue <- joined$structuretaxvaluedollarcnt
     joined$tv_logreg_structuretaxvalue <- log(joined$structuretaxvaluedollarcnt + 100)
     
     quantile(joined$structuretaxvaluedollarcnt, seq(0, 1, 0.2), na.rm=T)
@@ -521,7 +640,7 @@ if(recalculate_features) {
     # taxvaluedollarcnt
     hist(joined$taxvaluedollarcnt, col='light blue')
     hist(log(joined$taxvaluedollarcnt + 900), col='red')
-    joined$tv_reg_taxvalue <- joined$taxvaluedollarcnt
+    joined$tv_rawreg_taxvalue <- joined$taxvaluedollarcnt
     joined$tv_logreg_taxvalue <- log(joined$taxvaluedollarcnt + 900)
     
     quantile(joined$taxvaluedollarcnt, seq(0, 1, 0.05), na.rm=T)
@@ -537,7 +656,7 @@ if(recalculate_features) {
     joined$tv_cat_landtaxvalue_five <- cut2_rename(joined$landtaxvaluedollarcnt, 5, "tv_cat_landtaxvalue_five")
     joined$tv_cat_landtaxvalue_ten <- cut2_rename(joined$landtaxvaluedollarcnt, 10, "tv_cat_landtaxvalue_ten")
     joined$tv_cat_landtaxvalue_twenty <- cut2_rename(joined$landtaxvaluedollarcnt, 20, "tv_cat_landtaxvalue_twenty")
-    joined$tv_reg_landtaxvalue <- joined$landtaxvaluedollarcnt
+    joined$tv_rawreg_landtaxvalue <- joined$landtaxvaluedollarcnt
     joined$tv_logreg_landtaxvalue <- log(joined$landtaxvaluedollarcnt + 500)
     joined$landtaxvaluedollarcnt <- NULL
     
@@ -548,7 +667,7 @@ if(recalculate_features) {
     joined$tv_cat_taxamount_five <- cut2_rename(joined$taxamount, 5, "tv_cat_taxamount_five")
     joined$tv_cat_taxamount_ten <- cut2_rename(joined$taxamount, 10, "tv_cat_taxamount_ten")
     joined$tv_cat_taxamount_twenty <- cut2_rename(joined$taxamount, 20, "tv_cat_taxamount_twenty")
-    joined$tv_reg_taxamount <- joined$taxamount
+    joined$tv_rawreg_taxamount <- joined$taxamount
     joined$tv_logreg_taxamount <- log(joined$taxamount + 100)
     joined$taxamount <- NULL
     
@@ -572,11 +691,11 @@ if(recalculate_features) {
     hist(joined$censustractandblock * 10e307 * 10e2, col='gray')
     quantile(joined$censustractandblock * 10e307, seq(0, 1, 0.1), na.rm=T)
     
-    joined$tv_reg_censustractandblock <- joined$censustractandblock * 10e307 * 10e2
-        hist(joined$tv_reg_censustractandblock, col='red')
-    joined$tv_cat_censustractandblock_five <- cut2_rename(joined$tv_reg_censustractandblock, 5, "tv_cat_censustractandblock_five")
-    joined$tv_cat_censustractandblock_ten <- cut2_rename(joined$tv_reg_censustractandblock, 10, "tv_cat_censustractandblock_ten")
-    joined$tv_cat_censustractandblock_twenty <- cut2_rename(joined$tv_reg_censustractandblock, 20, "tv_cat_censustractandblock_twenty")
+    joined$tv_rawreg_censustractandblock <- joined$censustractandblock * 10e307 * 10e2
+        hist(joined$tv_rawreg_censustractandblock, col='red')
+    joined$tv_cat_censustractandblock_five <- cut2_rename(joined$tv_rawreg_censustractandblock, 5, "tv_cat_censustractandblock_five")
+    joined$tv_cat_censustractandblock_ten <- cut2_rename(joined$tv_rawreg_censustractandblock, 10, "tv_cat_censustractandblock_ten")
+    joined$tv_cat_censustractandblock_twenty <- cut2_rename(joined$tv_rawreg_censustractandblock, 20, "tv_cat_censustractandblock_twenty")
     joined$censustractandblock <- NULL
     
     names(joined)[!grepl("^tv_", names(joined))]
