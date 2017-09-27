@@ -19,3 +19,5 @@ cache/*.RData
 
 subs/*.csv
 
+*.Rproj.user*
+*.Rproj
