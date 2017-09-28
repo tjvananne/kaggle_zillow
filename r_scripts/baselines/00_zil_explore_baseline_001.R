@@ -2,10 +2,10 @@
 
 # baseline joined data so far
 
-
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-getwd()
-# "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
+# 
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# getwd()
+# # "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
 
 
 # source in config and function defs

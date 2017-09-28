@@ -17,8 +17,8 @@
 source('r_scripts/GBL_zil_config.R')
 source('r_scripts/GBL_zil_function_defs.R')
 
-recalculate_features <- FALSE
-if(recalculate_features) {
+# recalculate_features <- FALSE
+# if(recalculate_features) {
     
     
     # read data
@@ -60,6 +60,9 @@ if(recalculate_features) {
     #' Maybe we should also look into log transformations AND categorizing data AFTER log transformations
 
 
+    #' all "logreg" are assumed to have had their skewness minimized where applicable
+    #' all "rawreg" are just the raw numeric value that came with the data
+    #' all "cat" have the name of the variable pre-attached followed by a sequential number-factor for the grouping where applicable
         
     
     
@@ -94,15 +97,17 @@ if(recalculate_features) {
     joined$tv_cat_has_halfbath <- as.integer(joined$bathroomcnt %% 1 == 0.5)
     joined$tv_cat_has_halfbath <- paste0("tv_cat_has_halfbath_", as.character(joined$tv_cat_has_halfbath))
     joined$tv_cat_has_halfbath[grepl("_NA$", joined$tv_cat_has_halfbath)] <- NA
+        table(joined$tv_cat_has_halfbath)
+        assert_that(sum(is.na(joined$tv_cat_has_halfbath)) == sum(is.na(joined$bathroomcnt)))
     joined$tv_cat_count_toilets <- cut2(ceiling(joined$bathroomcnt), cuts = c(
         min(ceiling(joined$bathroomcnt), na.rm=T), 1, 2, 3, 4, 5, max(ceiling(joined$bathroomcnt), na.rm=T)))
     joined$tv_cat_count_toilets <- as.numeric(joined$tv_cat_count_toilets)
     joined$tv_cat_count_toilets <- paste0("tv_cat_count_toilets_", as.character(joined$tv_cat_count_toilets))
     joined$tv_cat_count_toilets[grepl("_NA$", joined$tv_cat_count_toilets)] <- NA
         table(joined$tv_cat_count_toilets)
-    # joined$tv_rawreg_bathroomcnt <- joined$bathroomcnt
-    joined$tv_logreg_bathroomcnt <- log(joined$bathroomcnt + 3.6)
+        assert_that(sum(is.na(joined$tv_cat_count_toilets)) == sum(is.na(joined$bathroomcnt)))
     joined$tv_rawreg_bathroomcnt <- joined$bathroomcnt
+    joined$tv_logreg_bathroomcnt <- log(joined$bathroomcnt + 3.6)
         assert_that(sum(is.na(joined$tv_logreg_bathroomcnt)) == sum(is.na(joined$bathroomcnt)))
         assert_that(sum(is.na(joined$tv_cat_count_toilets)) == sum(is.na(joined$bathroomcnt)))
         assert_that(sum(is.na(joined$tv_logreg_bathroomcnt)) == sum(is.na(joined$bathroomcnt)))
@@ -126,10 +131,12 @@ if(recalculate_features) {
     # joined$tv_cat_bedroomcnt <- cut2_rename(joined$bedroomcnt, 5, "tv_cat_bedroomcnt")  #<-- wanted this to be manual
     joined$tv_cat_bedroomcnt <- cut2(joined$bedroomcnt, cuts = c(
         min(joined$bedroomcnt, na.rm=T), 1, 2, 3, 4, 5, max(joined$bedroomcnt, na.rm=T)))
+        table(joined$tv_cat_bedroomcnt)
     joined$tv_cat_bedroomcnt <- as.numeric(joined$tv_cat_bedroomcnt)
     joined$tv_cat_bedroomcnt <- paste0("tv_cat_bedroomcnt_", as.character(joined$tv_cat_bedroomcnt))
     joined$tv_cat_bedroomcnt[grepl("_NA$", joined$tv_cat_bedroomcnt)] <- NA
         table(joined$tv_cat_bedroomcnt)
+        assert_that(sum(is.na(joined$tv_cat_bedroomcnt)) == sum(is.na(joined$bedroomcnt)))
     joined$tv_rawreg_bedroomcnt <- joined$bedroomcnt
     joined$tv_logreg_bedroomcnt <- log(joined$bedroomcnt + 15)
         assert_that(sum(is.na(joined$tv_cat_bedroomcnt)) == sum(is.na(joined$bedroomcnt)))
@@ -214,10 +221,14 @@ if(recalculate_features) {
     # finishedsquarefeet13
         hist(joined$finishedsquarefeet13, col='light blue')
         hist(log(joined$finishedsquarefeet13), col='light blue')  # <-- don't make log, this makes skew worse
+        hist(sqrt(joined$finishedsquarefeet13), col='black')
         moments::skewness(joined$finishedsquarefeet13, na.rm=T)
-        moments::skewness(log(joined$finishedsquarefeet13), na.rm=T)    
+        moments::skewness(log(joined$finishedsquarefeet13), na.rm=T) 
+        moments::skewness(sqrt(joined$finishedsquarefeet13), na.rm=T)
     # make features - not enough density to create a ten-category feature
     joined$tv_cat_finsqft13_five <- cut2_rename(joined$finishedsquarefeet13, 5, "tv_cat_finsqft13_five")
+        table(joined$tv_cat_finsqft13_five)
+        assert_that(sum(is.na(joined$tv_cat_finsqft13_five)) == sum(is.na(joined$finishedsquarefeet13)))
     joined$tv_rawreg_finsqft13 <- joined$finishedsquarefeet13    
     joined$finishedsquarefeet13 <- NULL    
     
@@ -229,7 +240,7 @@ if(recalculate_features) {
         hist(log(joined$finishedsquarefeet15 - 111), col='light blue', breaks=50)
         min(joined$finishedsquarefeet15, na.rm=T)
         moments::skewness(log(joined$finishedsquarefeet15), na.rm=T)
-        moments::skewness(log(joined$finishedsquarefeet15 - 111), na.rm=T)
+        moments::skewness(log(joined$finishedsquarefeet15 - 111), na.rm=T)  # <-- the most we can subtract by until we can't log
     # make features
     joined$tv_cat_finsqft15_five <- cut2_rename(joined$finishedsquarefeet15, 5, "tv_cat_finsqft15_five")
     joined$tv_cat_finsqft15_ten <- cut2_rename(joined$finishedsquarefeet15, 10, "tv_cat_finsqft15_ten")    
@@ -261,7 +272,7 @@ if(recalculate_features) {
         moments::skewness(log(joined$finishedsquarefeet6 + 72), na.rm=T)
     # make features
     joined$tv_cat_finsqft6_five <- cut2_rename(joined$finishedsquarefeet6, 5, "tv_cat_finsqft6_five")
-    # joined$tv_cat_finsqft6_ten <- cut2_rename(joined$finishedsquarefeet6, 10, "tv_cat_finsqft6_ten")  #  not enough density
+    joined$tv_cat_finsqft6_ten <- cut2_rename(joined$finishedsquarefeet6, 10, "tv_cat_finsqft6_ten")  #  not enough density
     joined$tv_rawreg_finsqft6 <- joined$finishedsquarefeet6
     joined$tv_logreg_finsqft6 <- log(joined$finishedsquarefeet6 + 72)
     joined$finishedsquarefeet6 <- NULL
@@ -270,6 +281,7 @@ if(recalculate_features) {
     
     # fips -- categorical location data I believe
     unique(joined$fips)
+    sum(is.na(joined$fips))
     joined$tv_cat_fips <- paste0("fips_", as.character(joined$fips))
     joined$tv_cat_fips[joined$tv_cat_fips == "fips_NA"] <- NA
         table(joined$tv_cat_fips); sum(is.na(joined$tv_cat_fips))
@@ -309,7 +321,7 @@ if(recalculate_features) {
     # full bath cnt -- Remove, this will just muddy the water
     sum(is.na(joined$fullbathcnt))  # 128k NAs
     min(joined$fullbathcnt, na.rm=T) # 1 is min
-    quantile(joined$fullbathcnt, seq(0, 1, 0.1), na.rm=T)
+    quantile(joined$fullbathcnt, seq(0, 1, 0.01), na.rm=T)
     joined$fullbathcnt <- NULL
     
     
@@ -360,94 +372,9 @@ if(recalculate_features) {
         table(joined$tv_cat_has_hottub)
         sum(is.na(joined$tv_cat_has_hottub)); sum(is.na(joined$hashottuborspa))
     joined$tv_cat_has_hottub <- paste0("tv_cat_has_hottub_", as.character(joined$tv_cat_has_hottub))
-    table(joined$tv_cat_has_hottub)
+        table(joined$tv_cat_has_hottub)
+        sum(is.na(joined$tv_cat_has_hottub))
     joined$hashottuborspa <- NULL
-    
-    
-    
-    
-    
-    # LAT and LON -- going to make lat-lon combo buckets
-        # not going to be able to use randomforest for some of these categorical features (over max num classes)
-        sum(is.na(joined$lat))
-        hist(joined$latitude, col='light blue')
-        sum(is.na(joined$longitude))
-        hist(joined$longitude, col='light blue')
-    # quantile groups
-    # lat lon five
-    joined$tv_cat_latitude_five <- as.character(as.numeric(cut2(joined$latitude, g=5)))
-    joined$tv_cat_longitude_five <- as.character(as.numeric(cut2(joined$longitude, g=5)))
-    joined$tv_cat_latlong_five <- paste0("tv_cat_latlong_five_", joined$tv_cat_latitude_five, '_', joined$tv_cat_longitude_five)
-    table(joined$tv_cat_latlong_five)
-    joined$tv_cat_latlong_five[grepl("NA", joined$tv_cat_latlong_five)] <- NA
-        sum(is.na(joined$tv_cat_latlong_five))
-    joined$tv_cat_latitude_five <- ifelse(is.na(joined$tv_cat_latitude_five), NA, 
-                                          paste0("tv_cat_latitude_five_", joined$tv_cat_latitude_five))
-    joined$tv_cat_longitude_five <- ifelse(is.na(joined$tv_cat_longitude_five), NA,
-                                           paste0("tv_cat_longitude_five_", joined$tv_cat_longitude_five))
-    # lat long ten
-    joined$tv_cat_latitude_ten <- as.character(as.numeric(cut2(joined$latitude, g=10)))
-    joined$tv_cat_longitude_ten <- as.character(as.numeric(cut2(joined$longitude, g=10)))
-    joined$tv_cat_latlong_ten <- paste0("tv_cat_latlong_ten_", joined$tv_cat_latitude_ten, '_', joined$tv_cat_longitude_ten)
-    table(joined$tv_cat_latlong_ten)
-    joined$tv_cat_latlong_ten[grepl("NA", joined$tv_cat_latlong_ten)] <- NA
-    sum(is.na(joined$tv_cat_latlong_ten))
-    joined$tv_cat_latitude_ten <- ifelse(is.na(joined$tv_cat_latitude_ten), NA, 
-                                          paste0("tv_cat_latitude_ten_", joined$tv_cat_latitude_ten))
-    joined$tv_cat_longitude_ten <- ifelse(is.na(joined$tv_cat_longitude_ten), NA,
-                                           paste0("tv_cat_longitude_ten_", joined$tv_cat_longitude_ten))
-    # lat long twenty
-    joined$tv_cat_latitude_twenty <- as.character(as.numeric(cut2(joined$latitude, g=20)))
-    joined$tv_cat_longitude_twenty <- as.character(as.numeric(cut2(joined$longitude, g=20)))
-        # too many groups
-        # joined$tv_cat_latlong_twenty <- paste0("tv_cat_latlong_twenty_", joined$tv_cat_latitude_twenty, '_', joined$tv_cat_longitude_twenty)
-        # table(joined$tv_cat_latlong_twenty)
-        # joined$tv_cat_latlong_twenty[grepl("NA", joined$tv_cat_latlong_twenty)] <- NA
-        # sum(is.na(joined$tv_cat_latlong_twenty))
-    joined$tv_cat_latitude_twenty <- ifelse(is.na(joined$tv_cat_latitude_twenty), NA, 
-                                         paste0("tv_cat_latitude_twenty_", joined$tv_cat_latitude_twenty))
-    joined$tv_cat_longitude_twenty <- ifelse(is.na(joined$tv_cat_longitude_twenty), NA,
-                                          paste0("tv_cat_longitude_twenty_", joined$tv_cat_longitude_twenty))
-    table(joined$tv_cat_latlong_twenty)
-    
-    # equal interval binning - 10 groups
-    (latmax_ <- max(joined$latitude, na.rm=T))
-    (latmin_ <- min(joined$latitude, na.rm=T))
-    latcut_10_ <- seq(latmin_, latmax_, by=((latmax_ - latmin_) / 10))
-    joined$tv_cat_latitude_eib_10 <- as.character(as.numeric(cut2(joined$latitude, cuts=latcut_10_)))
-        table(joined$tv_cat_latitude_eib_10)
-    (lonmax_ <- max(joined$longitude/1000, na.rm=T))  # <-- division by 1000 for longitude to fix numeric precision issues
-    (lonmin_ <- min(joined$longitude/1000, na.rm=T))
-    loncut_10_ <- seq(lonmin_, lonmax_, by=((lonmax_ - lonmin_) / 10))
-    joined$tv_cat_longitude_eib_10 <- as.character(as.numeric(cut2(joined$longitude/1000, cuts=loncut_10_)))
-        table(joined$tv_cat_longitude_eib_10)
-    joined$tv_cat_latlong_eib_10 <- paste0("tv_cat_latlong_eib_10_", joined$tv_cat_latitude_eib_10, '_', joined$tv_cat_longitude_eib_10)
-    joined$tv_cat_latlong_eib_10[grepl("NA", joined$tv_cat_latlong_eib_10)] <- NA
-    joined$tv_cat_latitude_eib_10 <- ifelse(is.na(joined$tv_cat_latitude_eib_10), NA,
-                                            paste0("tv_cat_latitude_eib_10_", joined$tv_cat_latitude_eib_10))
-    joined$tv_cat_longitude_eib_10 <- ifelse(is.na(joined$tv_cat_longitude_eib_10), NA,
-                                             paste0("tv_cat_longitude_eib_10_", joined$tv_cat_longitude_eib_10))
-        assert_that(sum(is.na(joined$latitude)) == sum(is.na(joined$tv_cat_latitude_eib_10)))
-        assert_that(sum(is.na(joined$longitude)) == sum(is.na(joined$tv_cat_longitude_eib_10)))
-        assert_that(sum(is.na(joined$longitude) | sum(is.na(joined$latitude))) == sum(is.na(joined$tv_cat_latlong_eib_10)))
-    
-    tv_cat_latlong_eib_10_grp <- table(joined$tv_cat_latlong_eib_10) %>% data.frame()
-    remove_sparse_latlong_eib10 <- as.character(tv_cat_latlong_eib_10_grp$Var1[tv_cat_latlong_eib_10_grp$Freq < 10000])
-    joined$tv_cat_latlong_eib_10[joined$tv_cat_latlong_eib_10 %in% remove_sparse_latlong_eib10] <- NA
-    # I WAS RIGHT HERE 9/32/2017
-    
-    # equal interval binning - 20 groups
-    latcut_20_ <- seq(latmin_, latmax_, by=((latmax_ - latmin_) / 20))
-    
-    
-    
-    
-    # regs
-    joined$tv_rawreg_latitude <- joined$latitude
-    joined$tv_rawreg_longitude <- joined$longitude
-    
-    joined$longitude <- NULL
-    joined$latitude <- NULL
     
     
     
@@ -456,12 +383,14 @@ if(recalculate_features) {
         hist(joined$lotsizesquarefeet, col='light green', breaks=50)
         hist(log(joined$lotsizesquarefeet, base=3), col='light green', breaks=50)
         min(joined$lotsizesquarefeet, na.rm=T)  # 100
+        moments::skewness(joined$lotsizesquarefeet, na.rm=T)
+        moments::skewness(log(joined$lotsizesquarefeet -99), na.rm=T)
     # cats
     joined$tv_cat_lotsizesqft_five <- cut2_rename(joined$lotsizesquarefeet, 5, "tv_cat_lotsizesqft_five")
     joined$tv_cat_lotsizesqft_ten <- cut2_rename(joined$lotsizesquarefeet, 10, "tv_cat_lotsizesqft_ten")
     # regs
     joined$tv_rawreg_lotsizesqft <- joined$lotsizesquarefeet
-    joined$tv_logreg_lotsizesqft <- log(joined$lotsizesquarefeet, base=3)
+    joined$tv_logreg_lotsizesqft <- log(joined$lotsizesquarefeet - 99)
     joined$lotsizesquarefeet <- NULL
     
     
@@ -500,8 +429,10 @@ if(recalculate_features) {
     
     
     # propertyzoningdesc -- not sure, let's go ahead and remove this for now?
+    joined$propertyzoningdesc <- trimws(joined$propertyzoningdesc)
+    joined$propertyzoningdesc[joined$propertyzoningdesc == ""] <- NA
         joined$propertyzoningdesc[200]  # 5,639 unique values
-        table(joined$propertyzoningdesc) %>% data.frame() %>% arrange(desc(Freq))
+        table(joined$propertyzoningdesc) %>% data.frame() %>% arrange(desc(Freq)) %>% top_n(20, Freq)
     joined$propertyzoningdesc <- NULL
     
     
@@ -509,7 +440,10 @@ if(recalculate_features) {
         hist(joined$rawcensustractandblock, col='red', breaks=50)
         joined$rawcensustractandblock %>% unique() %>% length()
         quantile(joined$rawcensustractandblock, seq(0, 1, 0.1), na.rm=T)
+        moments::skewness(joined$rawcensustractandblock, na.rm=T)
+        moments::skewness(log(joined$rawcensustractandblock + 10000), na.rm=T)
     joined$tv_cat_rawcensus_five <- cut2_rename(joined$rawcensustractandblock, 5, "tv_cat_rawcensus_five")
+    joined$tv_cat_rawcensus_ten <- cut2_rename(joined$rawcensustractandblock, 10, "tv_cat_rawcensus_ten")
     joined$tv_cat_rawcensus_twenty <- cut2_rename(joined$rawcensustractandblock, 20, "tv_cat_rawcensus_twenty")
     joined$tv_rawreg_rawcensus <- joined$rawcensustractandblock
     joined$rawcensustractandblock <- NULL
@@ -520,14 +454,15 @@ if(recalculate_features) {
         hist(joined$roomcnt, col='red', breaks=50)
         hist(log(joined$roomcnt), col='red', breaks=50)
         min(joined$roomcnt, na.rm=T)  # 0
+        moments::skewness(joined$roomcnt, na.rm=T)
+        moments::skewness(log(joined$roomcnt + 1), na.rm=T)
     joined$tv_cat_roomcnt <- cut2(joined$roomcnt, cuts = c(
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, max(joined$roomcnt, na.rm=T)))
-    table(joined$tv_cat_roomcnt)
+        0, 3, 4, 5, 6, 7, 8, 9, max(joined$roomcnt, na.rm=T)))
+        table(joined$tv_cat_roomcnt)
     joined$tv_cat_roomcnt <- as.numeric(joined$tv_cat_roomcnt)
     joined$tv_cat_roomcnt <- ifelse(is.na(joined$tv_cat_roomcnt), NA, 
                                     paste0("tv_cat_roomcnt_", as.character(joined$tv_cat_roomcnt)))
-    table(joined$tv_cat_roomcnt)
-    
+        table(joined$tv_cat_roomcnt)
     joined$tv_rawreg_roomcnt <- joined$roomcnt
     joined$tv_logreg_roomcnt <- log(joined$roomcnt + 1)
     joined$roomcnt <- NULL
@@ -542,27 +477,30 @@ if(recalculate_features) {
     
     
     # unitcnt
-    class(joined$unitcnt)
-    quantile(joined$unitcnt, seq(0, 1, 0.1), na.rm=T)
-    hist(joined$unitcnt, col='light blue', breaks=40)
-    hist(log(joined$unitcnt), col='light blue', breaks=40)
+        class(joined$unitcnt)
+        quantile(joined$unitcnt, seq(0, 1, 0.1), na.rm=T)
+        hist(joined$unitcnt, col='light blue', breaks=40)
+        hist(log(joined$unitcnt), col='light blue', breaks=40)
+        moments::skewness(joined$unitcnt, na.rm=T)
+        moments::skewness(log(joined$unitcnt), na.rm=T)
     joined$tv_cat_unitcnt_three <- cut2(joined$unitcnt, cuts=c(1, 2, 3))
+        table(joined$tv_cat_unitcnt_three)
     joined$tv_cat_unitcnt_three <- as.integer(joined$tv_cat_unitcnt_three)
     joined$tv_cat_unitcnt_three <- ifelse(is.na(joined$tv_cat_unitcnt_three), NA,
                                           paste0("tv_cat_unitcnt_three_", joined$tv_cat_unitcnt_three))
-    unique(joined$tv_cat_unitcnt_three)
-    table(joined$tv_cat_unitcnt_three)
-    
+        unique(joined$tv_cat_unitcnt_three)
+        table(joined$tv_cat_unitcnt_three)
     joined$tv_rawreg_unitcnt <- joined$unitcnt
     joined$tv_logreg_unitcnt <- log(joined$unitcnt)
     joined$unitcnt <- NULL
     
     
     # yardbuildingsqft17
-    hist(joined$yardbuildingsqft17, col='light blue')
-    hist(log(joined$yardbuildingsqft17 + 20), col='light blue')
-    quantile(joined$yardbuildingsqft17, seq(0, 1, 0.1), na.rm=T)
-    joined$tv_cat_yardbuildingsqft17_five 
+        hist(joined$yardbuildingsqft17, col='light blue')
+        hist(log(joined$yardbuildingsqft17 + 20), col='light blue')
+        quantile(joined$yardbuildingsqft17, seq(0, 1, 0.1), na.rm=T)
+        moments::skewness(joined$yardbuildingsqft17, na.rm=T)
+        moments::skewness(log(joined$yardbuildingsqft17 + 15), na.rm=T)
     joined$tv_cat_yardbuildingsqft17_five <- cut2_rename(joined$yardbuildingsqft17, 5, "tv_cat_yardbuildingsqft17_five")
     joined$tv_cat_yardbuildingsqft17_ten <- cut2_rename(joined$yardbuildingsqft17, 10, "tv_cat_yardbuildingsqft17_ten")
     joined$tv_rawreg_yardbuildingsqft17 <- joined$yardbuildingsqft17
@@ -571,37 +509,49 @@ if(recalculate_features) {
     
     
     # yardbuildingsqft26
-    hist(joined$yardbuildingsqft26, col='light blue')
-    hist(log(joined$yardbuildingsqft26), col='light blue')
+        hist(joined$yardbuildingsqft26, col='light blue')
+        hist(log(joined$yardbuildingsqft26), col='light blue')
+        min(joined$yardbuildingsqft26, na.rm=T)
+        moments::skewness(joined$yardbuildingsqft26, na.rm=T)
+        moments::skewness(log(joined$yardbuildingsqft26 - 2), na.rm=T)
     joined$tv_cat_yardbuildingsqft26_five <- cut2_rename(joined$yardbuildingsqft26, 5, "tv_cat_yardbuildingsqft26_five")
     joined$tv_cat_yardbuildingsqft26_ten <- cut2_rename(joined$yardbuildingsqft26, 10, "tv_cat_yardbuildingsqft26_ten")
     joined$tv_rawreg_yardbuildingsqft26 <- joined$yardbuildingsqft26
-    joined$tv_logreg_yardbuildingsqft26 <- log(joined$yardbuildingsqft26)
+    joined$tv_logreg_yardbuildingsqft26 <- log(joined$yardbuildingsqft26 - 2)
     joined$yardbuildingsqft26 <- NULL
     
     
     # yearbuilt
-    hist(joined$yearbuilt, col='light blue')
-    max(joined$yearbuilt, na.rm=T) # max is 2015
-    joined$tv_rawreg_building_age <- 2015 - joined$yearbuilt
-    hist(joined$tv_rawreg_building_age, col='light blue')
-    hist(log(joined$tv_rawreg_building_age + 35), col='light blue')
-    joined$tv_logreg_building_age <- log(joined$tv_rawreg_building_age + 35)
+        hist(joined$yearbuilt, col='light blue')
+        max(joined$yearbuilt, na.rm=T) # max is 2015
+    joined$tv_rawreg_building_age <- max(joined$yearbuilt, na.rm=T) - joined$yearbuilt
+        hist(joined$tv_rawreg_building_age, col='light blue')
+        hist(log(joined$tv_rawreg_building_age + 296), col='light blue')
+        moments::skewness(joined$tv_rawreg_building_age, na.rm=T)
+        moments::skewness(log(joined$tv_rawreg_building_age + 296), na.rm=T)
+    joined$tv_logreg_building_age <- log(joined$tv_rawreg_building_age + 296)
     quantile(joined$tv_rawreg_building_age, seq(0, 1, 0.2), na.rm=T)
-
     joined$tv_cat_building_age_five <- cut2_rename(joined$tv_rawreg_building_age, 5, "tv_cat_building_age_five")
     joined$tv_cat_building_age_ten <- cut2_rename(joined$tv_rawreg_building_age, 10, "tv_cat_building_age_ten")
     joined$yearbuilt <- NULL
     
     
     # numberofstories -- I think all we can / should do here is a boolean feature
-    hist(joined$numberofstories, col='light blue')
-    hist(log(joined$numberofstories), col='light blue')
+        hist(joined$numberofstories, col='light blue')
+        hist(log(joined$numberofstories), col='light blue')
+        table(joined$numberofstories)
     joined$tv_cat_bool_is_multi_story <- as.integer(joined$numberofstories > 1)
     joined$tv_cat_bool_is_multi_story <- ifelse(is.na(joined$tv_cat_bool_is_multi_story), NA,
                                                 paste0("tv_cat_bool_is_multi_story_", joined$tv_cat_bool_is_multi_story))
-    unique(joined$tv_cat_bool_is_multi_story)
-    table(joined$tv_cat_bool_is_multi_story)
+    joined$tv_cat_numberstories_three <- cut2(joined$numberofstories, cuts=c(1, 2, 3))
+    joined$tv_cat_numberstories_three <- as.numeric(joined$tv_cat_numberstories_three)
+        unique(joined$tv_cat_numberstories_three)
+    joined$tv_cat_numberstories_three <- ifelse(is.na(joined$tv_cat_numberstories_three), NA,
+                                                paste0("tv_cat_numberstories_three_", joined$tv_cat_numberstories_three))
+        assert_that(sum(is.na(joined$tv_cat_numberstories_three)) == sum(is.na(joined$numberofstories)))
+        table(joined$tv_cat_numberstories_three)
+        unique(joined$tv_cat_bool_is_multi_story)
+        table(joined$tv_cat_bool_is_multi_story)
     joined$numberofstories <- NULL
     
     
@@ -612,38 +562,43 @@ if(recalculate_features) {
     
     
     # assessmentyear -- when this isn't 2015, then NA
-    hist(joined$assessmentyear, col='light blue')
+        hist(joined$assessmentyear, col='light blue')
+        table(joined$assessmentyear)
     joined$taxamount[joined$assessmentyear != 2015 | is.na(joined$assessmentyear)] <- NA
     joined$taxdelinquencyflag[joined$assessmentyear != 2015 | is.na(joined$assessmentyear)] <- NA
     joined$taxdelinquencyyear[joined$assessmentyear != 2015 | is.na(joined$assessmentyear)] <- NA
     joined$taxvaluedollarcnt[joined$assessmentyear != 2015 | is.na(joined$assessmentyear)] <- NA
     joined$landtaxvaluedollarcnt[joined$assessmentyear != 2015 | is.na(joined$assessmentyear)] <- NA
     joined$structuretaxvaluedollarcnt[joined$assessmentyear != 2015 | is.na(joined$assessmentyear)] <- NA
-    table(joined$assessmentyear)
+        table(joined$assessmentyear)
     joined$assessmentyear <- NULL
     
     
     # structuretaxvaluedollarcnt
-    hist(joined$structuretaxvaluedollarcnt, col='light blue')
-    hist(log(joined$structuretaxvaluedollarcnt + 100), col='light blue') # <-- so beautiful...
+        hist(joined$structuretaxvaluedollarcnt, col='light blue')
+        hist(log(joined$structuretaxvaluedollarcnt + 100), col='light blue') # <-- so beautiful...
+        moments::skewness(joined$structuretaxvaluedollarcnt, na.rm=T)
+        moments::skewness(log(joined$structuretaxvaluedollarcnt + 5200), na.rm=T)
+        hist(log(joined$structuretaxvaluedollarcnt + 5200), na.rm=T, col='purple')
     joined$tv_rawreg_structuretaxvalue <- joined$structuretaxvaluedollarcnt
-    joined$tv_logreg_structuretaxvalue <- log(joined$structuretaxvaluedollarcnt + 100)
-    
-    quantile(joined$structuretaxvaluedollarcnt, seq(0, 1, 0.2), na.rm=T)
+    joined$tv_logreg_structuretaxvalue <- log(joined$structuretaxvaluedollarcnt + 5200)
+        quantile(joined$structuretaxvaluedollarcnt, seq(0, 1, 0.2), na.rm=T)
     joined$tv_cat_structuretaxvalue_five <- cut2_rename(joined$structuretaxvaluedollarcnt, 5, "tv_cat_structuretaxvalue_five")
     joined$tv_cat_structuretaxvalue_ten <- cut2_rename(joined$structuretaxvaluedollarcnt, 10, "tv_cat_structuretaxvalue_ten")
     joined$tv_cat_structuretaxvalue_twenty <- cut2_rename(joined$structuretaxvaluedollarcnt, 20, "tv_cat_structuretaxvalue_twenty")
-    
     joined$structuretaxvaluedollarcnt <- NULL
     
     
-    # taxvaluedollarcnt
-    hist(joined$taxvaluedollarcnt, col='light blue')
-    hist(log(joined$taxvaluedollarcnt + 900), col='red')
-    joined$tv_rawreg_taxvalue <- joined$taxvaluedollarcnt
-    joined$tv_logreg_taxvalue <- log(joined$taxvaluedollarcnt + 900)
     
-    quantile(joined$taxvaluedollarcnt, seq(0, 1, 0.05), na.rm=T)
+    # taxvaluedollarcnt
+        hist(joined$taxvaluedollarcnt, col='light blue')
+        hist(log(joined$taxvaluedollarcnt + 900), col='red')
+        hist(log(joined$taxvaluedollarcnt + 22000), col='purple')  # <-- that's pretty normal, man.
+        moments::skewness(joined$taxvaluedollarcnt, na.rm=T)
+        moments::skewness(log(joined$taxvaluedollarcnt + 22000), na.rm=T)
+    joined$tv_rawreg_taxvalue <- joined$taxvaluedollarcnt
+    joined$tv_logreg_taxvalue <- log(joined$taxvaluedollarcnt + 22000)
+        quantile(joined$taxvaluedollarcnt, seq(0, 1, 0.05), na.rm=T)
     joined$tv_cat_taxvalue_ten <- cut2_rename(joined$taxvaluedollarcnt, 10, "tv_cat_taxvalue_ten")
     joined$tv_cat_taxvalue_twenty <- cut2_rename(joined$taxvaluedollarcnt, 20, "tv_cat_taxvalue_twenty")
     joined$taxvaluedollarcnt <- NULL
@@ -651,24 +606,30 @@ if(recalculate_features) {
     
     
     # landtaxvaluedollarcnt
-    hist(joined$landtaxvaluedollarcnt, col='light blue')
-    hist(log(joined$landtaxvaluedollarcnt + 500), col='light blue')
+        hist(joined$landtaxvaluedollarcnt, col='light blue')
+        hist(log(joined$landtaxvaluedollarcnt + 500), col='light blue')
+        moments::skewness(joined$landtaxvaluedollarcnt, na.rm=T)
+        moments::skewness(log(joined$landtaxvaluedollarcnt + 12300), na.rm=T)
+        hist(log(joined$landtaxvaluedollarcnt + 12300), col='green')
     joined$tv_cat_landtaxvalue_five <- cut2_rename(joined$landtaxvaluedollarcnt, 5, "tv_cat_landtaxvalue_five")
     joined$tv_cat_landtaxvalue_ten <- cut2_rename(joined$landtaxvaluedollarcnt, 10, "tv_cat_landtaxvalue_ten")
     joined$tv_cat_landtaxvalue_twenty <- cut2_rename(joined$landtaxvaluedollarcnt, 20, "tv_cat_landtaxvalue_twenty")
     joined$tv_rawreg_landtaxvalue <- joined$landtaxvaluedollarcnt
-    joined$tv_logreg_landtaxvalue <- log(joined$landtaxvaluedollarcnt + 500)
+    joined$tv_logreg_landtaxvalue <- log(joined$landtaxvaluedollarcnt + 12300)
     joined$landtaxvaluedollarcnt <- NULL
     
     
     # taxamount
-    hist(joined$taxamount, col='light blue')
-    hist(log(joined$taxamount + 100), col='red')
+        hist(joined$taxamount, col='light blue')
+        hist(log(joined$taxamount + 100), col='red')
+        moments::skewness(joined$taxamount, na.rm=T)
+        moments::skewness(log(joined$taxamount + 270), na.rm=T)
+        hist(log(joined$taxamount + 270), col='pink')
     joined$tv_cat_taxamount_five <- cut2_rename(joined$taxamount, 5, "tv_cat_taxamount_five")
     joined$tv_cat_taxamount_ten <- cut2_rename(joined$taxamount, 10, "tv_cat_taxamount_ten")
     joined$tv_cat_taxamount_twenty <- cut2_rename(joined$taxamount, 20, "tv_cat_taxamount_twenty")
     joined$tv_rawreg_taxamount <- joined$taxamount
-    joined$tv_logreg_taxamount <- log(joined$taxamount + 100)
+    joined$tv_logreg_taxamount <- log(joined$taxamount + 270)
     joined$taxamount <- NULL
     
     
@@ -677,6 +638,9 @@ if(recalculate_features) {
     joined$tv_cat_bool_taxdelinquency <- as.integer(joined$taxdelinquencyflag == "Y")
     joined$tv_cat_bool_taxdelinquency <- ifelse(is.na(joined$tv_cat_bool_taxdelinquency), NA,
                                                 paste0("tv_cat_bool_taxdelinquency_", joined$tv_cat_bool_taxdelinquency))
+    assert_that(sum(is.na(joined$tv_cat_bool_taxdelinquency)) == sum(is.na(joined$taxdelinquencyflag)))
+    table(joined$tv_cat_bool_taxdelinquency)
+    sum(is.na(joined$tv_cat_bool_taxdelinquency))
     joined$taxdelinquencyflag <- NULL
     
     
@@ -687,12 +651,13 @@ if(recalculate_features) {
     
     
     # censustractandblock
-    class(joined$censustractandblock)
-    hist(joined$censustractandblock * 10e307 * 10e2, col='gray')
-    quantile(joined$censustractandblock * 10e307, seq(0, 1, 0.1), na.rm=T)
-    
-    joined$tv_rawreg_censustractandblock <- joined$censustractandblock * 10e307 * 10e2
-        hist(joined$tv_rawreg_censustractandblock, col='red')
+    joined$tv_rawreg_censustractandblock <- as.numeric(joined$censustractandblock / 10000000)
+        assert_that(length(unique(joined$tv_rawreg_censustractandblock)) == length(unique(joined$censustractandblock)))
+        hist(joined$tv_rawreg_censustractandblock, col='gray')
+        hist(log(joined$tv_rawreg_censustractandblock + 1), col='gray')
+        skewness(joined$tv_rawreg_censustractandblock, na.rm=T)
+        skewness(log(joined$tv_rawreg_censustractandblock + 2444000), na.rm=T)
+    joined$tv_logreg_censustractandblock <- log(joined$tv_rawreg_censustractandblock + 2444000)
     joined$tv_cat_censustractandblock_five <- cut2_rename(joined$tv_rawreg_censustractandblock, 5, "tv_cat_censustractandblock_five")
     joined$tv_cat_censustractandblock_ten <- cut2_rename(joined$tv_rawreg_censustractandblock, 10, "tv_cat_censustractandblock_ten")
     joined$tv_cat_censustractandblock_twenty <- cut2_rename(joined$tv_rawreg_censustractandblock, 20, "tv_cat_censustractandblock_twenty")
@@ -700,10 +665,108 @@ if(recalculate_features) {
     
     names(joined)[!grepl("^tv_", names(joined))]
         
-}
+# }
+
+
+# by far the most complicated section so far (LAT AND LONG) ----------------------------------------------------
+
+        # LAT and LON -- going to make lat-lon combo buckets
+        # not going to be able to use randomforest for some of these categorical features (over max num classes)
+            sum(is.na(joined$lat))
+            hist(joined$latitude, col='light blue')
+            sum(is.na(joined$longitude))
+            hist(joined$longitude, col='light blue')
+        # quantile groups
+        # lat lon five
+        joined$tv_cat_latitude_five <- as.character(as.numeric(cut2(joined$latitude, g=5)))
+        joined$tv_cat_longitude_five <- as.character(as.numeric(cut2(joined$longitude, g=5)))
+        joined$tv_cat_latlong_five <- paste0("tv_cat_latlong_five_", joined$tv_cat_latitude_five, '_', joined$tv_cat_longitude_five)
+            table(joined$tv_cat_latlong_five)
+            joined$tv_cat_latlong_five[grepl("NA", joined$tv_cat_latlong_five)] <- NA
+            sum(is.na(joined$tv_cat_latlong_five))
+        joined$tv_cat_latitude_five <- ifelse(is.na(joined$tv_cat_latitude_five), NA, 
+                                              paste0("tv_cat_latitude_five_", joined$tv_cat_latitude_five))
+        joined$tv_cat_longitude_five <- ifelse(is.na(joined$tv_cat_longitude_five), NA,
+                                               paste0("tv_cat_longitude_five_", joined$tv_cat_longitude_five))
+        # lat long ten
+        joined$tv_cat_latitude_ten <- as.character(as.numeric(cut2(joined$latitude, g=10)))
+        joined$tv_cat_longitude_ten <- as.character(as.numeric(cut2(joined$longitude, g=10)))
+        joined$tv_cat_latlong_ten <- paste0("tv_cat_latlong_ten_", joined$tv_cat_latitude_ten, '_', joined$tv_cat_longitude_ten)
+            table(joined$tv_cat_latlong_ten)
+        joined$tv_cat_latlong_ten[grepl("NA", joined$tv_cat_latlong_ten)] <- NA
+            sum(is.na(joined$tv_cat_latlong_ten))
+            length(unique(joined$tv_cat_latlong_ten))
+        joined$tv_cat_latitude_ten <- ifelse(is.na(joined$tv_cat_latitude_ten), NA, 
+                                             paste0("tv_cat_latitude_ten_", joined$tv_cat_latitude_ten))
+        joined$tv_cat_longitude_ten <- ifelse(is.na(joined$tv_cat_longitude_ten), NA,
+                                              paste0("tv_cat_longitude_ten_", joined$tv_cat_longitude_ten))
+        # lat long twenty
+        joined$tv_cat_latitude_twenty <- as.character(as.numeric(cut2(joined$latitude, g=20)))
+        joined$tv_cat_longitude_twenty <- as.character(as.numeric(cut2(joined$longitude, g=20)))
+        # too many groups
+        # joined$tv_cat_latlong_twenty <- paste0("tv_cat_latlong_twenty_", joined$tv_cat_latitude_twenty, '_', joined$tv_cat_longitude_twenty)
+        # table(joined$tv_cat_latlong_twenty)
+        # joined$tv_cat_latlong_twenty[grepl("NA", joined$tv_cat_latlong_twenty)] <- NA
+        # sum(is.na(joined$tv_cat_latlong_twenty))
+        joined$tv_cat_latitude_twenty <- ifelse(is.na(joined$tv_cat_latitude_twenty), NA, 
+                                                paste0("tv_cat_latitude_twenty_", joined$tv_cat_latitude_twenty))
+            length(unique(joined$tv_cat_latitude_twenty))
+        joined$tv_cat_longitude_twenty <- ifelse(is.na(joined$tv_cat_longitude_twenty), NA,
+                                                 paste0("tv_cat_longitude_twenty_", joined$tv_cat_longitude_twenty))
+            table(joined$tv_cat_latlong_twenty)
+            
+            
+        # equal interval binning - 10 groups
+        joined$longitude <- joined$longitude / 1000  # <-- ONLY DO THIS ONCE
+            
+        (latmax_ <- max(joined$latitude, na.rm=T))
+        (latmin_ <- min(joined$latitude, na.rm=T))
+        latcut_10_ <- seq(latmin_, latmax_, by=((latmax_ - latmin_) / 10))
+        joined$tv_cat_latitude_eib_10 <- as.character(as.numeric(cut2(joined$latitude, cuts=latcut_10_)))
+            table(joined$tv_cat_latitude_eib_10)
+        (lonmax_ <- max(joined$longitude, na.rm=T))  # <-- division by 1000 for longitude to fix numeric precision issues
+        (lonmin_ <- min(joined$longitude, na.rm=T))
+        loncut_10_ <- seq(lonmin_, lonmax_, by=((lonmax_ - lonmin_) / 10))
+            loncut_10_
+        joined$tv_cat_longitude_eib_10 <- as.character(as.numeric(cut2(joined$longitude, cuts=loncut_10_)))
+        table(joined$tv_cat_longitude_eib_10)
+        joined$tv_cat_latlong_eib_10 <- paste0("tv_cat_latlong_eib_10_", joined$tv_cat_latitude_eib_10, '_', joined$tv_cat_longitude_eib_10)
+        joined$tv_cat_latlong_eib_10[grepl("NA", joined$tv_cat_latlong_eib_10)] <- NA
+            length(unique(joined$tv_cat_latlong_eib_10))
+        joined$tv_cat_latitude_eib_10 <- ifelse(is.na(joined$tv_cat_latitude_eib_10), NA,
+                                                paste0("tv_cat_latitude_eib_10_", joined$tv_cat_latitude_eib_10))
+        joined$tv_cat_longitude_eib_10 <- ifelse(is.na(joined$tv_cat_longitude_eib_10), NA,
+                                                 paste0("tv_cat_longitude_eib_10_", joined$tv_cat_longitude_eib_10))
+            # assert_that(sum(is.na(joined$latitude)) == sum(is.na(joined$tv_cat_latitude_eib_10)))
+            # assert_that(sum(is.na(joined$longitude)) == sum(is.na(joined$tv_cat_longitude_eib_10)))
+            # assert_that(sum(is.na(joined$longitude) | sum(is.na(joined$latitude))) == sum(is.na(joined$tv_cat_latlong_eib_10)))
+             
+        tv_cat_latlong_eib_10_grp <- table(joined$tv_cat_latlong_eib_10) %>% data.frame()
+        remove_sparse_latlong_eib10 <- as.character(tv_cat_latlong_eib_10_grp$Var1[tv_cat_latlong_eib_10_grp$Freq < 10000])
+        joined$tv_cat_latlong_eib_10[joined$tv_cat_latlong_eib_10 %in% remove_sparse_latlong_eib10] <- NA
         
         
-############################################################################        
+        # regs
+        joined$tv_rawreg_latitude <- joined$latitude
+        joined$tv_rawreg_longitude <- joined$longitude
+        
+            skewness(joined$tv_rawreg_latitude, na.rm=T)
+            min(joined$tv_rawreg_latitude, na.rm=T)
+            skewness(log(joined$tv_rawreg_latitude - 31400000), na.rm=T)
+        joined$tv_logreg_latitude <- log(joined$tv_rawreg_latitude - 31400000)
+        
+            skewness(joined$tv_rawreg_longitude, na.rm=T)
+            min(joined$tv_rawreg_longitude, na.rm=T)
+            skewness(log(joined$tv_rawreg_longitude + 900000019477), na.rm=T)
+        joined$tv_logreg_longitude <- log(joined$tv_rawreg_longitude + 219477)        
+            
+        joined$longitude <- NULL
+        joined$latitude <- NULL
+
+        
+        
+
+#### ---IDs--- ############################################################################        
 # checkpoint to make sure our pipeline is good:
 saveRDS(joined, file=file.path(GBL_PATH_TO_DATA, "joined2.rds"))
 joined <- readRDS(file.path(GBL_PATH_TO_DATA, "joined2.rds"))

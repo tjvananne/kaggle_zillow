@@ -21,3 +21,4 @@ subs/*.csv
 
 *.Rproj.user*
 *.Rproj
+.Rproj.user
