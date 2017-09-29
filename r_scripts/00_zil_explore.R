@@ -14,7 +14,7 @@ source('r_scripts/GBL_zil_function_defs.R')
 
 
 
-recalculate_features <- FALSE
+recalculate_features <- T
 if(!recalculate_features) {
     
     list.files(GBL_PATH_TO_DATA)
