@@ -8,23 +8,26 @@
 
 
 
-#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-#getwd()
-# "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
-
-
 # source in config and function defs
 source('r_scripts/GBL_zil_config.R')
 source('r_scripts/GBL_zil_function_defs.R')
 
-# recalculate_features <- FALSE
-# if(recalculate_features) {
+
+
+recalculate_features <- FALSE
+if(!recalculate_features) {
+    
+    list.files(GBL_PATH_TO_DATA)
+    joined <- readRDS(file=file.path(GBL_PATH_TO_DATA, 'joined_checkpoint1.rds'))
+        
+} else {
     
     
     # read data
     prop <- fread(file.path(GBL_PATH_TO_DATA, 'properties_2016.csv'))
     train <- fread(file.path(GBL_PATH_TO_DATA, 'train_2016_v2.csv'))
     zzzsampsub <- fread(file.path(GBL_PATH_TO_DATA, 'sample_submission.csv'))
+    
     
     # make sure they are DFs
     setDF(prop)
@@ -46,19 +49,7 @@ source('r_scripts/GBL_zil_function_defs.R')
     joined <- merge(x=train, y=prop, by='parcelid', all.x=T, all.y=T, sort=F)
     joined$id <- joined$parcelid; joined$parcelid <- NULL
 
-
-    # reset
-    # joined_filepath <- file.path(GBL_PATH_TO_DATA, 'joined.rds')
-    # saveRDS(joined, joined_filepath) 
     
-    
-    # one by one feature analysis:
-    # look at everything except for things with "id" in the name -- those we'll look at on their own
-
-    #' might want to come back and revisit all of these and flag all of the records where they are
-    #' in the top 1 or 0.5 % or something. Some of these right-hand tails are absurd... very skewed data
-    #' Maybe we should also look into log transformations AND categorizing data AFTER log transformations
-
 
     #' all "logreg" are assumed to have had their skewness minimized where applicable
     #' all "rawreg" are just the raw numeric value that came with the data
@@ -579,7 +570,7 @@ source('r_scripts/GBL_zil_function_defs.R')
         hist(log(joined$structuretaxvaluedollarcnt + 100), col='light blue') # <-- so beautiful...
         moments::skewness(joined$structuretaxvaluedollarcnt, na.rm=T)
         moments::skewness(log(joined$structuretaxvaluedollarcnt + 5200), na.rm=T)
-        hist(log(joined$structuretaxvaluedollarcnt + 5200), na.rm=T, col='purple')
+        hist(log(joined$structuretaxvaluedollarcnt + 5200), col='purple')
     joined$tv_rawreg_structuretaxvalue <- joined$structuretaxvaluedollarcnt
     joined$tv_logreg_structuretaxvalue <- log(joined$structuretaxvaluedollarcnt + 5200)
         quantile(joined$structuretaxvaluedollarcnt, seq(0, 1, 0.2), na.rm=T)
@@ -651,24 +642,38 @@ source('r_scripts/GBL_zil_function_defs.R')
     
     
     # censustractandblock
-    joined$tv_rawreg_censustractandblock <- as.numeric(joined$censustractandblock / 10000000)
-        assert_that(length(unique(joined$tv_rawreg_censustractandblock)) == length(unique(joined$censustractandblock)))
+    if(class(joined$censustractandblock) != "integer64") {
+        # data is not in "integer64" format
+        joined$tv_rawreg_censustractandblock <- joined$censustractandblock * 10e307 * 10e2
         hist(joined$tv_rawreg_censustractandblock, col='gray')
+        summary(joined$tv_rawreg_censustractandblock)
         hist(log(joined$tv_rawreg_censustractandblock + 1), col='gray')
         skewness(joined$tv_rawreg_censustractandblock, na.rm=T)
-        skewness(log(joined$tv_rawreg_censustractandblock + 2444000), na.rm=T)
-    joined$tv_logreg_censustractandblock <- log(joined$tv_rawreg_censustractandblock + 2444000)
+        skewness(log(joined$tv_rawreg_censustractandblock + 6000000000000000), na.rm=T)  # <-- can't unskew this one...
+        joined$tv_logreg_censustractandblock <- log(joined$tv_rawreg_censustractandblock + 2444000)
+    } else {
+        # loaded in as an integer64 class type and is too big to fit into "numeric"
+        joined$tv_rawreg_censustractandblock <- as.numeric(joined$censustractandblock / 10000000)
+        hist(joined$tv_rawreg_censustractandblock, col='gray')
+        summary(joined$tv_rawreg_censustractandblock)
+        hist(log(joined$tv_rawreg_censustractandblock + 1), col='gray')
+        skewness(joined$tv_rawreg_censustractandblock, na.rm=T)
+        skewness(log(joined$tv_rawreg_censustractandblock + 2444000), na.rm=T)  # <-- but this one seems to unskew...
+        joined$tv_logreg_censustractandblock <- log(joined$tv_rawreg_censustractandblock + 2444000)
+    }
+    
+        # as long as we can assert that we haven't lost the same number of unique values, I think we're fine either way
+        assert_that(length(unique(joined$tv_rawreg_censustractandblock)) == length(unique(joined$censustractandblock)))
+        
     joined$tv_cat_censustractandblock_five <- cut2_rename(joined$tv_rawreg_censustractandblock, 5, "tv_cat_censustractandblock_five")
     joined$tv_cat_censustractandblock_ten <- cut2_rename(joined$tv_rawreg_censustractandblock, 10, "tv_cat_censustractandblock_ten")
     joined$tv_cat_censustractandblock_twenty <- cut2_rename(joined$tv_rawreg_censustractandblock, 20, "tv_cat_censustractandblock_twenty")
     joined$censustractandblock <- NULL
     
-    names(joined)[!grepl("^tv_", names(joined))]
         
-# }
 
 
-# by far the most complicated section so far (LAT AND LONG) ----------------------------------------------------
+    # by far the most complicated section so far (LAT AND LONG) ----------------------------------------------------
 
         # LAT and LON -- going to make lat-lon combo buckets
         # not going to be able to use randomforest for some of these categorical features (over max num classes)
@@ -741,6 +746,7 @@ source('r_scripts/GBL_zil_function_defs.R')
             # assert_that(sum(is.na(joined$longitude)) == sum(is.na(joined$tv_cat_longitude_eib_10)))
             # assert_that(sum(is.na(joined$longitude) | sum(is.na(joined$latitude))) == sum(is.na(joined$tv_cat_latlong_eib_10)))
              
+        # because these are equal interval instead of equal frequency, we need to remove the extremely sparse LatLon grids
         tv_cat_latlong_eib_10_grp <- table(joined$tv_cat_latlong_eib_10) %>% data.frame()
         remove_sparse_latlong_eib10 <- as.character(tv_cat_latlong_eib_10_grp$Var1[tv_cat_latlong_eib_10_grp$Freq < 10000])
         joined$tv_cat_latlong_eib_10[joined$tv_cat_latlong_eib_10 %in% remove_sparse_latlong_eib10] <- NA
@@ -763,152 +769,157 @@ source('r_scripts/GBL_zil_function_defs.R')
         joined$longitude <- NULL
         joined$latitude <- NULL
 
-        
-        
-
-#### ---IDs--- ############################################################################        
-# checkpoint to make sure our pipeline is good:
-saveRDS(joined, file=file.path(GBL_PATH_TO_DATA, "joined2.rds"))
-joined <- readRDS(file.path(GBL_PATH_TO_DATA, "joined2.rds"))
-
-
-# what's left? 
-names(joined)[!grepl("^tv_", names(joined))]
-        
-
-# airconditioningtypeid
-table(joined$airconditioningtypeid)
-class(joined$airconditioningtypeid)
-thisdf <- data.frame(airconditioningtypeid = c(1, 3, 5, 9, 11, 12, 13),
-                     tv_cat_airconditioningtypeid = c('1', 'other', '3', 'other', 'other', 'other', '2'))
-joined <- merge(x=joined, y=thisdf, by='airconditioningtypeid', all.x=T, all.y=F)
-joined$tv_cat_airconditioningtypeid <- ifelse(is.na(joined$tv_cat_airconditioningtypeid), NA,
-                                              paste0("tv_cat_airconditioningtypeid_", joined$tv_cat_airconditioningtypeid))
-table(joined$tv_cat_airconditioningtypeid)
-sum(is.na(joined$tv_cat_airconditioningtypeid))
-joined$airconditioningtypeid <- NULL; rm(thisdf)
-
-
-
-# architecturalstyletypeid - this isi pretty pitiful, let's just remove it
-table(joined$architecturalstyletypeid)
-joined$architecturalstyletypeid <- NULL
-
-
-# buildingclasstypeid
-table(joined$buildingclasstypeid)
-joined$buildingclasstypeid <- NULL
-
-
-# buildingqualitytypeid  <-- potentially an "ordinal" variable
-table(joined$buildingqualitytypeid)
+}  # End of recalculate features control flow flag
 
 
 
 
-# decktypeid
-# heatingorsystemtypeid
-# pooltypeid10
-# pooltypeid2
-# pooltypeid7
-# propertylandusetypeid
-# regionidcity
-# regionidcounty
-# regionidneighborhood
-# regionidzip
-# storytypeid
-# typeconstructiontypeid
-
-
-
-     
-
-
-
-# variables with "id" in them are explored below
-
-
-
-   
-        
-# # isolate the ids and what dataset they came from
-# ids <- data.frame(parcelid = unique(c(prop$parcelid, train$parcelid)))
-# ids$dataset <- 'test'
-# ids$dataset[ids$parcelid %in% train$parcelid] <- 'train'
-# ids <- ids %>% arrange(parcelid)
-
-
-
-# names(prop)
-# paste0(names(prop)[grepl('id', names(prop))], collapse = ', ')
-
-
-
-coltype_id <- c(
-    "airconditioningtypeid", "architecturalstyletypeid", "buildingclasstypeid", "buildingqualitytypeid", 
-    "decktypeid", "heatingorsystemtypeid", "pooltypeid10", "pooltypeid2", "pooltypeid7", 
-    "propertylandusetypeid", "regionidcity", "regionidcounty", "regionidneighborhood", 
-    "regionidzip", "storytypeid", "typeconstructiontypeid"
-)
-
-
-
-
-coltype_id_in_datadict <- c(
-    # with intensive research, we make ordinal copies of some of these (heating, least to most advanced?)
-    "heatingorsystemtypeid",  # <-- 13 "None"  (76 in train, 1266 in test)
-    "propertylandusetypeid",  
-    "storytypeid",
-    "airconditioningtypeid",  # <-- 5 "None"   (215 in train, 8580 in test)
-    "architecturalstyletypeid",
-    "typeconstructiontypeid",
-    "buildingclasstypeid"
-)
-
-
-
-
-(paste0(setdiff(coltype_id, coltype_id_in_datadict), collapse=', '))
-
-coltype_id_not_in_datadict <- c(
+# remaining features --------------------------------------------------------------
     
-    # should be numeric
-    "buildingqualitytypeid", # 1 is best, 12 is worst (treat as numerical)
+            
+    # at this point we should be left with only the "id" fields        
+    names(joined)[!grepl("^tv_", names(joined))]
     
-    # should be categorical
-    "decktypeid",            # NA or 66, let's treat 66 as a TRUE or something? boolean?
-    "pooltypeid10",          # NA or 1, a one means spa or hottub
-    "pooltypeid2",           # NA or 1, a one means pool with spa or hottub
-    "pooltypeid7",           # NA or 1, a one means pool without spa or hottub
-    "regionidcounty",        # 4 unique county values (including missing) -- categorical
+    # are there any infinite values?
+    names(joined)[sapply(joined, function(x) sum(is.infinite(x)))]
     
-    # still categorical, may require binning of some sort:
-    "regionidcity",          # 187 unique city values -- categorical (any relation to Lat/Long?)
-    "regionidneighborhood",  # 529 unique values -- categorical (any relation to Lat/Long?)
-    "regionidzip"            # 406 unique values -- categorical
-)
-
-# overlap?
-assert_that(!any(duplicated(c(coltype_id_in_datadict, coltype_id_not_in_datadict))))
-
-# any missing?
-assert_that(!any(!coltype_id %in% (c(coltype_id_in_datadict, coltype_id_not_in_datadict))))
-
-
-# are the pool ids mutually exclusive? or do they add to each other?
-pools <- unique(prop[, c('pooltypeid10', 'pooltypeid2', 'pooltypeid7')])
-print(pools)
-
-
-
-    # yes, mutually exclusive
-    # pooltypeid10 pooltypeid2 pooltypeid7
-    # 1               NA          NA          NA
-    # 111             NA          NA           1
-    # 1341             1          NA          NA
-    # 10337           NA           1          NA
-
-
+    
+    file.exists(file=file.path(GBL_PATH_TO_DATA, "joined_checkpoint1.rds"))   
+    saveRDS(joined, file=file.path(GBL_PATH_TO_DATA, "joined_checkpoint1.rds"))
+    
+    
+    #### ---IDs--- ############################################################################        
+    
+    
+    # what's left? 
+    names(joined)[!grepl("^tv_", names(joined))]
+            
+    
+    # airconditioningtypeid
+    sum(is.na(joined$airconditioningtypeid)) / nrow(joined)
+    tbl_airconditioningtypeid <- table(joined$airconditioningtypeid) %>% data.frame() %>% 
+        mutate(tv_cat_airconditioningtypeid = ifelse(Freq >= 8000, Var1, NA)) %>%
+        rename(airconditioningtypeid=Var1)
+    joined <- merge(x=joined, y=tbl_airconditioningtypeid, by='airconditioningtypeid', all.x=T, all.y=F)
+    
+    joined$tv_cat_airconditioningtypeid %>% table()
+    
+    joined$tv_cat_airconditioningtypeid <- ifelse(is.na(joined$tv_cat_airconditioningtypeid), NA,
+                                                  paste0("tv_cat_airconditioningtypeid_", joined$tv_cat_airconditioningtypeid))
+    table(joined$tv_cat_airconditioningtypeid)
+    sum(is.na(joined$tv_cat_airconditioningtypeid))
+    joined$airconditioningtypeid <- NULL; rm(thisdf)
+    
+    
+    
+    # architecturalstyletypeid - this isi pretty pitiful, let's just remove it
+    table(joined$architecturalstyletypeid)
+    joined$architecturalstyletypeid <- NULL
+    
+    
+    # buildingclasstypeid
+    table(joined$buildingclasstypeid)
+    joined$buildingclasstypeid <- NULL
+    
+    
+    # buildingqualitytypeid  <-- potentially an "ordinal" variable
+    table(joined$buildingqualitytypeid)
+    
+    
+    # decktypeid
+    # heatingorsystemtypeid
+    # pooltypeid10
+    # pooltypeid2
+    # pooltypeid7
+    # propertylandusetypeid
+    # regionidcity
+    # regionidcounty
+    # regionidneighborhood
+    # regionidzip
+    # storytypeid
+    # typeconstructiontypeid
+    
+    
+    # variables with "id" in them are explored below
+       
+    # # isolate the ids and what dataset they came from
+    # ids <- data.frame(parcelid = unique(c(prop$parcelid, train$parcelid)))
+    # ids$dataset <- 'test'
+    # ids$dataset[ids$parcelid %in% train$parcelid] <- 'train'
+    # ids <- ids %>% arrange(parcelid)
+    
+    
+    
+    # names(prop)
+    # paste0(names(prop)[grepl('id', names(prop))], collapse = ', ')
+    
+    
+    
+    coltype_id <- c(
+        "airconditioningtypeid", "architecturalstyletypeid", "buildingclasstypeid", "buildingqualitytypeid", 
+        "decktypeid", "heatingorsystemtypeid", "pooltypeid10", "pooltypeid2", "pooltypeid7", 
+        "propertylandusetypeid", "regionidcity", "regionidcounty", "regionidneighborhood", 
+        "regionidzip", "storytypeid", "typeconstructiontypeid"
+    )
+    
+    
+    
+    
+    coltype_id_in_datadict <- c(
+        # with intensive research, we make ordinal copies of some of these (heating, least to most advanced?)
+        "heatingorsystemtypeid",  # <-- 13 "None"  (76 in train, 1266 in test)
+        "propertylandusetypeid",  
+        "storytypeid",
+        "airconditioningtypeid",  # <-- 5 "None"   (215 in train, 8580 in test)
+        "architecturalstyletypeid",
+        "typeconstructiontypeid",
+        "buildingclasstypeid"
+    )
+    
+    
+    
+    
+    (paste0(setdiff(coltype_id, coltype_id_in_datadict), collapse=', '))
+    
+    coltype_id_not_in_datadict <- c(
+        
+        # should be numeric
+        "buildingqualitytypeid", # 1 is best, 12 is worst (treat as numerical)
+        
+        # should be categorical
+        "decktypeid",            # NA or 66, let's treat 66 as a TRUE or something? boolean?
+        "pooltypeid10",          # NA or 1, a one means spa or hottub
+        "pooltypeid2",           # NA or 1, a one means pool with spa or hottub
+        "pooltypeid7",           # NA or 1, a one means pool without spa or hottub
+        "regionidcounty",        # 4 unique county values (including missing) -- categorical
+        
+        # still categorical, may require binning of some sort:
+        "regionidcity",          # 187 unique city values -- categorical (any relation to Lat/Long?)
+        "regionidneighborhood",  # 529 unique values -- categorical (any relation to Lat/Long?)
+        "regionidzip"            # 406 unique values -- categorical
+    )
+    
+    # overlap?
+    assert_that(!any(duplicated(c(coltype_id_in_datadict, coltype_id_not_in_datadict))))
+    
+    # any missing?
+    assert_that(!any(!coltype_id %in% (c(coltype_id_in_datadict, coltype_id_not_in_datadict))))
+    
+    
+    # are the pool ids mutually exclusive? or do they add to each other?
+    pools <- unique(prop[, c('pooltypeid10', 'pooltypeid2', 'pooltypeid7')])
+    print(pools)
+    
+    
+    
+        # yes, mutually exclusive
+        # pooltypeid10 pooltypeid2 pooltypeid7
+        # 1               NA          NA          NA
+        # 111             NA          NA           1
+        # 1341             1          NA          NA
+        # 10337           NA           1          NA
+    
+    
 
 
 

@@ -2,12 +2,15 @@
 # ignore .rds files for now
 *.rds
 
+
 # ignore the .csv input files for now
 input/*.csv
+
 
 # ignore these things windows vim likes to create
 *.un~
 *~
+
 
 # these things that get created when unzipping csvs
 *_MACOSX*
@@ -17,8 +20,12 @@ input/*.csv
 cache/*.rds
 cache/*.RData
 
+
+# submission files will be too big to include
 subs/*.csv
 
+
+# R project stuff
 *.Rproj.user*
 *.Rproj
 .Rproj.user
