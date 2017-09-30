@@ -798,12 +798,15 @@ if(!recalculate_features) {
     # airconditioningtypeid
     sum(is.na(joined$airconditioningtypeid)) / nrow(joined)
     tbl_airconditioningtypeid <- table(joined$airconditioningtypeid) %>% data.frame() %>% 
-        mutate(tv_cat_airconditioningtypeid = ifelse(Freq >= 8000, Var1, NA)) %>%
+        arrange(desc(Freq)) %>%
+        filter(Freq >= 8000) %>%
+        # mutate(tv_cat_airconditioningtypeid = if_else(Freq >= 8000, Var1, NA)) %>%
         rename(airconditioningtypeid=Var1)
     joined <- merge(x=joined, y=tbl_airconditioningtypeid, by='airconditioningtypeid', all.x=T, all.y=F)
     
-    joined$tv_cat_airconditioningtypeid %>% table()
     
+    joined$tv_cat_airconditioningtypeid %>% table()
+    joined$tv_cat_airconditioningtypeid <- 
     joined$tv_cat_airconditioningtypeid <- ifelse(is.na(joined$tv_cat_airconditioningtypeid), NA,
                                                   paste0("tv_cat_airconditioningtypeid_", joined$tv_cat_airconditioningtypeid))
     table(joined$tv_cat_airconditioningtypeid)
