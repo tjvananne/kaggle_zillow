@@ -1,0 +1,48 @@
+Sparse Matrix Creation:
+
+
+# also, are these steps the same for regression vs classification?
+# I guess that doesn't make a difference?
+
+
+1) get the dense dataset how you want it
+	-- dense dataset must have field named "id" to uniquely identify each record
+
+
+# DATA SETUP (make this a function) ---------
+# Passin: dataframe, names of num cols, names of cat cols
+2) isolate numeric (still wide) and scale (if necessary) then convert to long, arrange by id
+3) isolate categorical, convert to long, assign value of 1, arrange by id
+4) remove NAs in both num (value) and cat (feature_name) datasets
+5) concat num and cat tables
+*** return the long-form feature-only dataframe
+
+
+# EXPERIMENT SETUP (make this a separate function) ---------
+# Passin: long-form dataframe, train/test/holdout ids, y_ids (2 col df, answer and id)
+# this can also be used to create experiments where we're solving for a feature (stacked gen)
+6) split into train/test/holdout
+7) for each dataset: create id_num which is the as.numeric(as.factor(id))
+	-- you can create a data.frame(id = unique(id)), sort it by id, 
+	-- then number 1:nrow(.) if you're unable to run an as.factor on the full id set
+8) identify intersection of unique feature names among all three datasets
+	-- there shouldn't be features in some datasets that are missing from others...
+	-- remove the non-intersecting features (features not found in all datasets)
+9) combine all datasets again 
+10) create feature_num which is as.numeric(as.factor(feature_name))
+	-- can generate a unique(feature_name) mapping table like before if necessary
+11) split datasets again
+
+
+# at this point, we need a way to "backout" of the long-form of data and into a dense data.frame
+# for analysis of certain feature performance within the model.
+# this needs to be it's own separate function that utilizes tidyr
+
+# Ideas:
+* separate out categories and numeric values
+* SOLVE for FEATURES and then use those as the predictions
+	-- start with categories that have the least amount of missing values
+
+
+
+

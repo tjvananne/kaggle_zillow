@@ -25,7 +25,7 @@ print("loading GBL_zil_config file")
 # function definitions
 
     # cut numeric fields into quantiled categories
-    cut2_rename <- function(p_vec, p_grps, p_name, p_verb=T) {
+    cut2_rename <- function(p_vec, p_grps, p_name="", p_verb=T) {
         
         # # for testing:
         # p_vec <- c(1, 4, 2, NA, 7, 5, 4, 2, NA, 5, 3, 3, 2, 4, 4, NA, 3, 2)
@@ -38,7 +38,13 @@ print("loading GBL_zil_config file")
         if(p_verb) {print(table(post_cut)) }
         post_cut_num <- as.numeric(post_cut)
         if(p_verb) {print(table(post_cut_num))}
-        post_cut_num_char <- paste0(p_name, "_", as.character(post_cut_num))
+        
+        if(p_name=="") {
+            post_cut_num_char <- as.character(post_cut_num)
+        } else {
+            post_cut_num_char <- paste0(p_name, "_", as.character(post_cut_num))
+        }
+        
         if(p_verb) {print(table(post_cut_num_char))}
         post_cut_num_char[grepl("_NA$", post_cut_num_char)] <- NA
         return(post_cut_num_char)

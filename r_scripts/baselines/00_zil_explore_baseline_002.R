@@ -5,7 +5,7 @@
 #' sparse matrices are too difficult to keep track of, next experiments will be exactly the same
 #' but with dense matrices so we can actually see what the hell is going on.
 
-# 
+
 # setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 # getwd()
 # # "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
@@ -17,18 +17,26 @@ source('r_scripts/GBL_zil_function_defs.R')  # function definitions
 
 
 # config for this script / experiment:
-this_seed <- 1776
+exp_seed <- 1776
 exp_number <- "002"
 rdata_file <- file.path(GBL_PATH_TO_CACHE, paste0("all_files_for_00_zil_baseline", exp_number, ".RData"))
+rdata_exp_file <- file.path(GBL_PATH_TO_CACHE, paste0("experiment_files_00_zil_baseline", exp_number, ".RData"))
 read_in_file <- file.path(GBL_PATH_TO_DATA, "joined_checkpoint1.rds")
+exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this is what we need to start predicting on features
 
 
 # control flow flag
-rebuild1 <- F
+rebuild1 <- T
 
 
 # set up data for train/test split and whatnot
 if(rebuild1) {
+    
+    # what would it take for this whole block to be built into a function?
+    # that would allow us to quickly iterate over different datasets without 
+    # the pain of manipulating the long data which can be challenging
+    
+    
     # THIS WAS A CHECKPOINT from the preprocessing file
     list.files(GBL_PATH_TO_DATA)
     joined <- readRDS(read_in_file)
@@ -42,7 +50,7 @@ if(rebuild1) {
     
     
     # identify train/test + holdout split -------------------------------------
-        set.seed(this_seed)
+        set.seed(exp_seed)
         joined <- joined %>% arrange(id)
         y <- joined[, c("id", "logerror")]
         y_test <- y[is.na(y$logerror), ]
@@ -54,9 +62,9 @@ if(rebuild1) {
             gc()
         
             # design quality assertions
-            assert_that(!any(y_train$id %in% y_holdout$id))
-            assert_that(!any(y_train$id %in% y_test$id))
-            assert_that(!any(y_holdout$id %in% y_train$id))
+            assert_that(length(intersect(y_train$id, y_holdout$id)) == 0)
+            assert_that(length(intersect(y_train$id, y_test$id)) == 0)
+            assert_that(length(intersect(y_test$id, y_holdout$id)) == 0)
             
             
     # numeric / categorical split ----------------------------------------------
@@ -216,6 +224,7 @@ if(rebuild1) {
         setDF(x_train); setDF(x_test); setDF(x_holdout)
         sapply(x_train, class)        
         
+        
         # switch factors to character
         x_train$id <- as.character(x_train$id)
         x_train$feature_name <- as.character(x_train$feature_name)
@@ -265,9 +274,9 @@ if(rebuild1) {
     
     # the above processes sorted train and holdout by id by default (setting key)
     # we need to sort test that was as well
+    gc()
     x_test <- x_test %>% arrange(id)
     
-    head(x_holdout); head(x_train)
     
     
         # assert that we're still in order here
@@ -275,6 +284,7 @@ if(rebuild1) {
         assert_that(all(y_test$id == unique(x_test$id)))
         assert_that(all(y_holdout$id == unique(x_holdout$id)))
     
+        # can we add more assertions to determine if feature/id's are all in order as well?
     
         # # one final sort to make sure
         # x_train <- x_train %>% arrange(id)
@@ -312,42 +322,13 @@ if(rebuild1) {
         x=x_holdout$value
     )
     
+    rm(x_holdout, x_train, x_test); gc()
     
     # construct dmats
     x_dmt_train <- xgboost::xgb.DMatrix(x_train_sp, label=y_train$logerror)
     x_dmt_holdout <- xgboost::xgb.DMatrix(x_holdout_sp, label=y_holdout$logerror) 
     x_dmt_test <- xgboost::xgb.DMatrix(x_test_sp)
         
-        
-        # what is going on
-        length(unique(x_train$feature_name))
-        length(unique(x_train$id))
-        length(unique(x_train$feature_num))
-        class(x_train$feature_name)
-        dim(x_train_sp)    
-        sapply(x_train, function(x) sum(is.na(x)))
-        sapply(x_train, function(x) sum(is.null(x)))
-        sapply(x_train, function(x) sum(is.infinite(x)))
-        attributes(x_dmt_train)
-        
-        
-        dim(x_train_sp)
-        dim(x_test_sp)
-        dim(x_holdout_sp)
-        
-        length(unique(x_test$feature_name))
-        length(unique(x_holdout$feature_name))
-        
-        x_inspect <- x_train %>%
-            group_by(id, feature_name) %>%
-            summarise(this_feat_same_id = n())
-            
-        head(x_inspect)
-        x_inspect2 <- x_inspect %>%
-            arrange(desc(this_feat_same_id))
-    
-        head(x_inspect2)
-        max(x_inspect2$this_feat_same_id)        
         
         
 # this will likely be a grid search over a wide area of xgb parameters
@@ -357,13 +338,15 @@ if(rebuild1) {
                    "eval_metric" = "mae",
                    "eta" = 0.01, 
                    "max_depth" = 7, 
-                   "subsample" = 0.8, 
-                   "colsample_bytree" = 0.4,
-                   "lambda" = 0, 
-                   "alpha" = 1, 
-                   "nthread" = 6)     
+                   "subsample" = 0.3, 
+                   "colsample_bytree" = 0.3,
+                   "lambda" = 1, 
+                   "alpha" = 1,
+                   "max_delta_step" = 1,
+                   "nthread" = 4)     
     
     # run CV
+    set.seed(exp_seed)
     x_cv <- xgboost::xgb.cv(
         data=x_dmt_train,
         params=params,
@@ -388,28 +371,26 @@ if(rebuild1) {
     
     
         # feature importance
-        dim(x_train_sp); length(unique(x_train$feature_name))
-        this_xgb_imp <- xgboost::xgb.importance(unique(as.character(x_train$feature_name)), model=this_xgb)
+        # dim(x_train_sp); length(unique(x_train$feature_name))
+        this_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(dist_feats$feature_name), model=this_xgb)
         xgboost::xgb.plot.importance(this_xgb_imp[1:20,])
         
-        
-        # from joined
-        ggplot(data=joined %>% filter(id %in% y_train$id), aes(x=tv_cat_poolsize_ten, y=logerror)) +
-            geom_boxplot() +
-            coord_flip()
-        
-        cat_poolsize_ten_8 <- x_train %>%
-            filter(feature_name == "tv_cat_poolsize_ten_8")
         
         
         
     
     # predict
-    yhat_holdout <- predict(myxgb, x_holdout_sp)
+    yhat_holdout <- predict(this_xgb, x_holdout_sp)
     y_holdout$yhat <- yhat_holdout
     mean(abs(y_holdout$logerror - y_holdout$yhat))
-    y_train$yhat <- predict(myxgb, x_train_sp)
-    y_test$yhat <- predict(myxgb, x_test_sp)
+    y_train$yhat <- predict(this_xgb, x_train_sp)
+    y_test$yhat <- predict(this_xgb, x_test_sp)
+    
+    
+        # compare prediction distribution vs real distribution
+        hist(yhat_holdout, breaks=50, col='light blue')
+        hist(y_train$logerror, breaks=50, col='light green')
+    
     
     # generate subs
     sub <- bind_rows(
@@ -429,7 +410,7 @@ if(rebuild1) {
     sub$ParcelId <- gsub("pid_", "", sub$ParcelId)
     head(sub$ParcelId)
     
-    write.csv(sub, "../subs/sub_baseline_001.csv", row.names = F)
+    write.csv(sub, paste0("../subs/sub_baseline_", exp_number, "001.csv"), row.names = F)
     head(sub)
     # baseline001. xgboost. cv=0.06916229; holdout=0.065937; PLB=0.0655428
     
