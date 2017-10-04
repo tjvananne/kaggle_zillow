@@ -49,8 +49,73 @@ if(rebuild1) {
         sum(is.na(joined$logerror))
     
     
+# function dev  ------------------------------------------------------------------    
+    #' ok, we're going to start dev on a new function which takes in the dense
+    #' data frame, names of numeric cols, and names of categorical cols, and
+    #' returns you with a dataframe of long form. Bonus if we can supply the name
+    #' of the unique record identifier to be used in the "tidyr::gather()" function.
+    #' That would require non-standard evaluation
+    
+    # joined is the dataset we're passing in
+    # let's prepare the inputs to the function
+    numcols <- names(joined)[startsWith(names(joined), "tv_rawreg") | startsWith(names(joined), "tv_logreg")]
+    catcols <- names(joined)[startsWith(names(joined), "tv_cat_")]
+    
+    # for quicker development
+    joined_small <- joined[1:10000,]
+    
+    
+    tv_gen_numcat_long <- function(p_df, p_numcols, p_catcols, p_id, p_scale=T) {
+        
+        # NUMERIC
+        
+            # convert the p_id parameter into something we can use in dplyr functions
+            this_id <- enquo(p_id)
+            # isolate numeric features, scale/center (if applicable), combine
+            df_num <- select(p_df, p_numcols)
+            if(p_scale) {
+                myproc_scaler_center <- caret::preProcess(df_num, method=c("scale", "center"))
+                df_num <- predict(myproc_scaler_center, df_num)  # <-- overwriting the existing non-scaled numeric values
+            }    
+            # add ID back in
+            df_num <- cbind(id=select(p_df, !!this_id), df_num)
+            gc()
+            
+        # CATEGORICAL
+            
+            # create a collector dataframe
+            df_cat <- data.frame()
+            
+            # not the most efficient way, but it'll get the job done
+            for(feat in p_catcols) {
+                
+                # keep track of where ew're at
+                print(feat)  # <-- keep for now
+                
+                # isolate this feat
+                df_feats_ <- joined[, c("id", feat)]
+                
+                # one hot encoding
+                df_feats_$value <- 1
+                names(df_feats_) <- c("id", "feature_name", "value")
+                feats_cat <- bind_rows(feats_cat, df_feats_)
+            }
+        
+        
+        return(df_num)
+    }
+        
+     x <- tv_gen_numcat_long(joined, numcols, catcols, id) 
+        assert_that(all(x$id == joined$id))
+     
+     names(x)
+     
+     
+    
     
     # identify train/test + holdout split -------------------------------------
+        
+        # this doesn't necessarily have to happen first, this could have been done later after the long df creation
         set.seed(exp_seed)
         joined <- joined %>% arrange(id)
         y <- joined[, c("id", "logerror")]
