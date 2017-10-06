@@ -36,8 +36,8 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     holdout_indx <- caret::createDataPartition(y=y_train$logerror, p=0.15, list=F)
     y_holdout <- y_train[holdout_indx, ]
     y_train <- y_train[-holdout_indx, ]
-        
-            gc()
+    rm(holdout_indx, y)
+    gc()
         
             # design quality assertions
             assert_that(length(intersect(y_train$id, y_holdout$id)) == 0)
@@ -50,16 +50,29 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     # this is really just a test of the functions that have been developed
             
     # identify numeric vs categorical features
+    this_mod <- "01"
+    # we have file (experiment) number, and then a model (within file) number
+    longcache_fp <- paste0("cache/jlong_yids_file", exp_number, "_mod", this_mod, ".RData")
+    dmatcache_fp <- paste0("cache/dmats_file", exp_number, "_mod", this_mod, ".RData")
+    
+    # split numeric / categorical features (features only)
     feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
     feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
     
+    # generate long data
     jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=feats_name_num, p_catcols=feats_name_cat)
-    rm(joined)
+    rm(joined); gc()
+    
+    # save(jlong, y_train, y_test, y_holdout, file=longcache_fp)
+    load(file=longcache_fp)
     gc()
     
-    exp <- tv_gen_exp_sparsemats(p_longdf=jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
     
-
+    exp <- tv_gen_exp_sparsemats(p_longdf=jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+    save(exp, file=dmatcache_fp)
+    lapply(exp, dim)
+    
+    
     # set up params search space and run it!
     exp_params <- list("objective" = "reg:linear", 
                        "eval_metric" = "mae",
