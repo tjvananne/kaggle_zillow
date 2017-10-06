@@ -45,51 +45,74 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
             assert_that(length(intersect(y_test$id, y_holdout$id)) == 0)
             
             
-# exp1 (all data) ----------------------------------------------
+# mod1 (all data) ----------------------------------------------
         
-    # this is really just a test of the functions that have been developed
             
-    # identify numeric vs categorical features
-    this_mod <- "01"
+    # manually select what cols you want from "joined"
+    # joined <- joined  # <-- this model we'll use all of joined
+            
     # we have file (experiment) number, and then a model (within file) number
-    longcache_fp <- paste0("cache/jlong_yids_file", exp_number, "_mod", this_mod, ".RData")
-    dmatcache_fp <- paste0("cache/dmats_file", exp_number, "_mod", this_mod, ".RData")
+    mod1_nbr <- "01"
+    mod1_longcache_fp <- paste0("cache/jlong_yids_file", exp_number, "_mod", mod1_nbr, ".RData")
+    mod1_dmatcache_fp <- paste0("cache/dmats_file", exp_number, "_mod", mod1_nbr, ".RData")
     
-    # split numeric / categorical features (features only)
-    feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
-    feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
-    
-    # generate long data
-    jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=feats_name_num, p_catcols=feats_name_cat)
-    rm(joined); gc()
-    
-    # save(jlong, y_train, y_test, y_holdout, file=longcache_fp)
-    load(file=longcache_fp)
-    gc()
-    
-    
-    exp <- tv_gen_exp_sparsemats(p_longdf=jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
-    save(exp, file=dmatcache_fp)
-    lapply(exp, dim)
+    # either load in cache file or build experiment files from scratch
+    if(file.exists(mod1_dmatcache_fp)) {
+        print("mod1 dmatcache file exists; loading it now...")
+        load(file=mod1_dmatcache_fp)
+    } else if(file.exists(mod1_longcache_fp)) { 
+        print("mod1 dmatcache file doesn't exist; loading in longcache file though...")
+        load(file=mod1_longcache_fp) 
+        mod1_exp <- tv_gen_exp_sparsemats(p_longdf=mod1_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+        gc()
+        save(mod1_exp, file=mod1_dmatcache_fp)
+    } else {
+        print("mod1 didn't have either cash file, generating dmat files now...")
+        
+        # split numeric / categorical features (features only)
+        mod1_feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
+        mod1_feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
+        
+        # generate long data
+        mod1_jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=mod1_feats_name_num, p_catcols=mod1_feats_name_cat)
+        rm(joined)
+        gc()
+        
+        # save or load cache
+        # save(mod1_jlong, y_train, y_test, y_holdout, file=mod1_longcache_fp)  # <-- skip this to save space
+        
+        # generate dmat files
+        mod1_exp <- tv_gen_exp_sparsemats(p_longdf=mod1_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+        save(mod1_exp, file=mod1_dmatcache_fp)
+        lapply(mod1_exp, dim)
+        gc()
+    }
+        
+    # split exp files into separate dmats
+    mod1_dmat_tr <- mod1_exp$train
+    mod1_dmat_te <- mod1_exp$test
+    mod1_dmat_ho <- mod1_exp$holdout
+    mod1_dist_feats <- mod1_exp$features
     
     
     # set up params search space and run it!
-    exp_params <- list("objective" = "reg:linear", 
+    mod1_params <- list("objective" = "reg:linear", 
                        "eval_metric" = "mae",
                        "eta" = 0.01, 
                        "max_depth" = 7, 
-                       "subsample" = 0.3, 
-                       "colsample_bytree" = 0.3,
-                       "lambda" = 1, 
+                       "subsample" = 0.5, 
+                       "colsample_bytree" = 0.5,
+                       "lambda" = 0, 
                        "alpha" = 1,
                        "max_delta_step" = 1,
                        "nthread" = 4)     
+    mod1_obj_min <- T
     
     # run CV
     set.seed(exp_seed)
-    x_cv <- xgboost::xgb.cv(
-        data=x_dmt_train,
-        params=params,
+    mod1_cv <- xgboost::xgb.cv(
+        data=mod1_dmat_tr,
+        params=mod1_params,
         nrounds=10000,
         nfold=5,
         early_stopping_rounds=200
@@ -97,24 +120,29 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     
     
     # identify best number of rounds
-    this_eval_log <- data.frame(x_cv$evaluation_log)
-    this_metric <- names(this_eval_log)[grepl("^test_", names(this_eval_log)) & grepl("_mean$", names(this_eval_log))]
-    this_bestn_rounds <- which.min(this_eval_log[, this_metric])
+    mod1_eval_log <- data.frame(mod1_cv$evaluation_log)
+    mod1_metric <- names(mod1_eval_log)[grepl("^test_", names(mod1_eval_log)) & grepl("_mean$", names(mod1_eval_log))]
+    if(mod1_obj_min) {
+        mod1_bestn_rounds <- which.min(mod1_eval_log[, mod1_metric])
+    } else {
+        mod1_bestn_rounds <- which.max(mod1_eval_log[, mod1_metric])
+    }
     
     
     # run the real model
-    this_xgb <- xgboost::xgboost(
-        data=x_dmt_train,
-        params=params,
-        nrounds=this_bestn_rounds
+    mod1_xgb <- xgboost::xgb.train(
+        data=mod1_dmat_tr,
+        params=mod1_params,
+        nrounds=mod1_bestn_rounds,
+        print_every_n=1
     )
     
     
         # feature importance
         # dim(x_train_sp); length(unique(x_train$feature_name))
-        this_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(dist_feats$feature_name), model=this_xgb)
-        xgboost::xgb.plot.importance(this_xgb_imp[1:20,])
-        
+        mod1_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(mod1_dist_feats$feature_name), model=mod1_xgb)
+        xgboost::xgb.plot.importance(mod1_xgb_imp[1:20,])
+        xgboost::xgb.plot.importance(mod1_xgb_imp[21:40,])
         
         
         
@@ -159,94 +187,4 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     #' board scores are so close. CV is lacking a bit but that is to be
     #' expected. Tradeoffs.
     #' 
-    
-    
-    
-###############################################################################
-    
-    # three different models for three different months
-    
-    #' Next, I'd like to see if we can improve THIS submission at all by 
-    #' training three separate models for month 10, 11, 12, respectively.
-    #' Then we can predict the months separately as opposed to just building
-    #' one giant generalized model.
-    
-    
-    # CHECKPOINT pipeline
-    
-    setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-    getwd()
-    # "C:/Users/tvananne/Documents/personal/github/kaggles/zillow_zestimate/r_scripts"
-    
-    
-    # source in config and function defs
-    source('GBL_zil_config.R')
-    source('GBL_zil_function_defs.R')
-    
-    # load from checkpoint
-    load(file=file.path(GBL_PATH_TO_CACHE, "all_files_for_00_zil_baseline01.RData"))
-    gc()
-    
-        
-    # first step: determine how to figure out how to separate them into the three months they're closest to
-    tdates <- joined_sub$transactiondate[!is.na(joined_sub$transactiondate)]
-    tdates <- lubridate::ymd(tdates)
-    min(tdates); max(tdates)
-    
-    
-    
-    joined_sub$transactiondate <- lubridate::ymd(joined_sub$transactiondate)   
-    
-    
-    joined_sub_10 <- joined_sub %>% 
-        filter(transactiondate >= ymd('2016-10-01')) %>%
-        filter(transactiondate <= ymd('2016-10-31'))
-    
-    joined_sub_11 <- joined_sub %>%
-        filter(transactiondate >= ymd('2016-11-01')) %>%
-        filter(transactiondate <= ymd('2016-11-30'))
-    
-    joined_sub_12 <- joined_sub %>%
-        filter(transactiondate >= ymd('2016-12-01')) %>%
-        filter(transactiondate <= ymd('2016-12-31'))
-    
-    
-    # set up params search space and run it
-    params <- list("objective" = "reg:linear", "eval_metric" = "mae",
-                   "eta" = 0.01, 
-                   "max_depth" = 6, 
-                   "subsample" = 0.7, 
-                   "colsample_bytree" = 0.6,
-                   # "lambda" = 1.0, 
-                   # "min_child_weight" = 6, 
-                   # "gamma" = 10,
-                   "alpha" = 1.0, 
-                   "nthread" = 6)     
-    
-    
-    # train with this, predict with this plus everything else?
-    feats_all_10 <- feats_all %>%
-        filter(id %in% joined_sub_10$id)
-    
-    
-    
-    x_cv <- xgboost::xgb.cv(
-        data=x_dmt_train,
-        params=params,
-        nrounds=10000,
-        nfold=7,
-        early_stopping_rounds=50
-    )
-    
-    min(x_cv$evaluation_log$test_mae_mean)
-    which.min(x_cv$evaluation_log$test_mae_mean)
-    
-    myxgb <- xgboost::xgboost(
-        data=x_dmt_train,
-        params=params,
-        nrounds=638
-    )
-    
-    
-    
     
