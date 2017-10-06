@@ -50,70 +50,233 @@ if(rebuild1) {
     
     
 # function dev  ------------------------------------------------------------------    
+        
+        
+        
+        
+        
+        
     #' ok, we're going to start dev on a new function which takes in the dense
     #' data frame, names of numeric cols, and names of categorical cols, and
     #' returns you with a dataframe of long form. Bonus if we can supply the name
     #' of the unique record identifier to be used in the "tidyr::gather()" function.
     #' That would require non-standard evaluation
     
-    # joined is the dataset we're passing in
-    # let's prepare the inputs to the function
+        
+    joined <- arrange(joined, id)
+        
+        
+    # joined is the dataset we're passing in; these are inputs we're responsible for to generate the long-form dataset
     numcols <- names(joined)[startsWith(names(joined), "tv_rawreg") | startsWith(names(joined), "tv_logreg")]
     catcols <- names(joined)[startsWith(names(joined), "tv_cat_")]
     
-    # for quicker development
+    
+    # for quicker development and testing
     joined_small <- joined[1:10000,]
     
     
-    tv_gen_numcat_long <- function(p_df, p_numcols, p_catcols, p_id, p_scale=T) {
+    
+    # what if some of these are blank?
+    
+    tv_gen_numcat_long <- function(p_df, p_id, p_numcols=NULL, p_catcols=NULL,  p_scale=T) {
+        
+        # convert the p_id parameter into something we can use in dplyr functions
+        this_id <- enquo(p_id)
         
         # NUMERIC
-        
-            # convert the p_id parameter into something we can use in dplyr functions
-            this_id <- enquo(p_id)
-            # isolate numeric features, scale/center (if applicable), combine
-            df_num <- select(p_df, p_numcols)
-            if(p_scale) {
-                myproc_scaler_center <- caret::preProcess(df_num, method=c("scale", "center"))
-                df_num <- predict(myproc_scaler_center, df_num)  # <-- overwriting the existing non-scaled numeric values
-            }    
-            # add ID back in
-            df_num <- cbind(id=select(p_df, !!this_id), df_num)
-            gc()
-            
-        # CATEGORICAL
-            
-            # create a collector dataframe
-            df_cat <- data.frame()
-            
-            # not the most efficient way, but it'll get the job done
-            for(feat in p_catcols) {
+            print("processing numeric columns....")
+            if(!is.null(p_numcols)) {
+                # isolate numeric features, scale/center (if applicable), combine
+                df_num <- select(p_df, p_numcols)
                 
-                # keep track of where ew're at
-                print(feat)  # <-- keep for now
-                
-                # isolate this feat
-                df_feats_ <- joined[, c("id", feat)]
-                
-                # one hot encoding
-                df_feats_$value <- 1
-                names(df_feats_) <- c("id", "feature_name", "value")
-                feats_cat <- bind_rows(feats_cat, df_feats_)
+                if(p_scale) {
+                    print("scaling numeric columns....")
+                    
+                    myproc_scaler_center <- caret::preProcess(df_num, method=c("scale", "center"))
+                    df_num <- predict(myproc_scaler_center, df_num)  # <-- overwriting the existing non-scaled numeric values
+                }    
+                # add ID back in
+                df_num <- cbind(id=select(p_df, !!this_id), df_num)
+                gc()
+                # gather all numeric features into feature_name / column format
+                print("gathering numeric columns....")
+                df_num <- tidyr::gather(df_num, key=feature_name, value=value, -!!this_id) %>%
+                    filter(!is.na(value)) %>%
+                    arrange(!!this_id)
+                gc()
             }
-        
-        
-        return(df_num)
+            
+
+        # CATEGORICAL
+            print("processing categorical columns....")
+            if(!is.null(p_catcols)) {
+                # create a collector dataframe
+                df_cats <- vector("list", length(p_catcols))
+                
+                print("looping through categorical columns....")
+                # not the most efficient way, but it'll get the job done
+                for(i in 1:length(p_catcols)) {
+                    
+                    # keep track of where ew're at
+                    print(p_catcols[i])  # <-- keep for now
+                    # isolate this feat
+                    df_feats_ <- select(p_df, !!this_id, p_catcols[i])
+                    # one hot encoding
+                    df_feats_$value <- 1
+                    names(df_feats_) <- c("id", "feature_name", "value")
+                    df_feats_ <- df_feats_ %>%
+                        filter(!is.na(feature_name))
+                    df_cats[[i]] <- df_feats_
+                }
+                gc() # <-- move this into the loop if things get crazy and we need more memory
+                df_cat <- bind_rows(df_cats); rm(df_cats); gc()
+            }
+            print("finished looping through categorical columns....")
+            
+            if(!is.null(p_numcols) & is.null(p_catcols)) {
+                # p_numcols provided but not p_catcols
+                feats_all_long <- df_num 
+            } else if(!is.null(p_catcols) & is.null(p_numcols)) {
+                # p_catcols is provided but not p_numcols
+                feats_all_long <- df_cat
+            } else {
+                # both are provided -- there's a final option that neither are provided, but wth would that even mean?
+                feats_all_long <- bind_rows(df_num, df_cat)
+            }
+            
+            print("final sort on the data's id field....")
+            # for consistency sake, let's arrange it by the id
+            feats_all_long <- feats_all_long %>%
+                arrange(!!this_id)
+            
+        return(feats_all_long)
     }
+    
+            # # testing function
+            # x <- tv_gen_numcat_long(p_df=joined_small, p_id=id, p_numcols=numcols, p_catcols=catcols)
+            #     assert_that(all(unique(x$id) == joined_small$id))
+            # x2 <- tv_gen_numcat_long(p_df=joined_small, p_id=id, p_numcols=numcols) # <-- just nums
+            #     assert_that(all(unique(x$id) == joined_small$id))        
+            #     head(x2); unique(x2$feature_name)
+            # x3 <- tv_gen_numcat_long(p_df=joined_small, p_id=id, p_catcols=catcols) # <-- just cats
+            #     assert_that(all(unique(x3$id) == joined_small$id))
+            #     head(x3); unique(x3$feature_name)
+            
+            
+                
+                
+                
+                
+                
+    # setup - let's iris for now because it's simpler?
+    set.seed(1)
+    myiris <- iris[sample(1:nrow(iris), nrow(iris)), ]
+    myiris$id <- 1:nrow(myiris)            
+    names(myiris) <- gsub("\\.", "_", tolower(names(myiris)))
+    myiris_yid <- myiris[, c("petal_length", "id")]
+    myiris$petal_length <- NULL
+    myiris_remcols <- "id"
+    myiris_numcols <- names(myiris)[sapply(myiris, class) %in% c("numeric", "integer")]
+    myiris_catcols <- names(myiris)[sapply(myiris, class) %in% c("character", "factor")]
+    myiris_numcols <- myiris_numcols[!myiris_numcols %in% myiris_remcols]
+    myiris_catcols <- myiris_catcols[!myiris_catcols %in% myiris_remcols]
+    
+        myiris_numcols
+        names(myiris)
+    
+    tr_idx <- caret::createDataPartition(y=myiris_yid$petal_length, p=0.7, list=F)
+    myiris_tr_ids <- myiris_yid[tr_idx,]
+    myiris_te_ids <- myiris_yid[-tr_idx,] 
+    ho_idx <- caret::createDataPartition(y=myiris_tr_ids$petal_length, p=0.2, list=F)
+    myiris_ho_ids <- myiris_tr_ids[ho_idx, ]
+    myiris_tr_ids <- myiris_tr_ids[-ho_idx, ]
+    
+        assert_that(length(intersect(myiris_tr_ids$id, myiris_ho_ids$id)) == 0)
+        assert_that(length(intersect(myiris_tr_ids$id, myiris_te_ids$id)) == 0)
+        assert_that(length(intersect(myiris_te_ids$id, myiris_ho_ids$id)) == 0)
+    
+            
+    # generate long form
+    myiris_long <- tv_gen_numcat_long(myiris, id, myiris_numcols, myiris_catcols)
+    
         
-     x <- tv_gen_numcat_long(joined, numcols, catcols, id) 
-        assert_that(all(x$id == joined$id))
-     
-     names(x)
-     
-     
     
     
-    # identify train/test + holdout split -------------------------------------
+    
+    
+    
+    tv_gen_exp_sparsemats <- function(p_longdf, p_id, p_target, p_yids, p_tr_ids, p_te_ids, p_ho_ids=NULL) {
+        # p_longdf: longform of the dataset
+        # p_id: name of the "id" field
+        # p_target: name of the target variable
+        # p_yids: 2 column dataframe, one column is the id, other is the target variable
+        # p_tr_ids: character vector of train id values
+        # p_te_ids: character vector of test id values
+        # p_ho_ids: character vector of holdout id values
+        
+        # this function renames your ID field to "id" - deal with it.
+        # stop pretending like you're making a package and just write the function with constraints
+        
+        
+        
+        this_id <- enquo(p_id)
+    
+        p_longdf <- p_longdf %>% rename(id = !!this_id)
+        
+        train_ <- p_longdf %>% filter(id %in% p_tr_ids)
+        test_ <- p_longdf %>% filter(id %in% p_te_ids) 
+        holdout_ <- p_longdf %>% filter(id %in% p_ho_ids)
+        
+        browser()
+        
+        # combine feature names to create the distinct features mapping
+        dist_feats <- intersect(train_$feature_name, test_$feature_name)
+        dist_feats <- intersect(dist_feats, holdout_$feature_name)
+        dist_feats <- dist_feats[order(dist_feats)]
+        
+        # i had just decided to do the feature mapping before id number mapping
+        
+        
+        # Numeric value mapping tables for IDs
+        train_ids_ <- train_ %>% arrange(id) %>% select(id) %>% unique() %>% mutate(id_num = 1:nrow(.))
+        test_ids_ <- test_ %>% arrange(id) %>% select(id) %>% unique() %>% mutate(id_num = 1:nrow(.))
+        holdout_ids_ <- holdout_ %>% arrange(id) %>% select(id) %>% unique() %>% mutate(id_num = 1:nrow(.))
+        
+        # merge
+        setDT(train_ids_); setDT(test_ids_); setDT(holdout_ids_)
+        setkey(train_ids_, id); setkey(test_ids_, id); setkey(holdout_ids_, id)
+        train_ <- merge(x=train_, y=train_ids_, by="id", all.x=T, all.y=F, sort=F)
+            rm(train_ids_)
+        test_ <- merge(x=test_, y=test_ids_, by="id", all.x=T, all.y=F, sort=F)
+            rm(test_ids_)
+        holdout_ <- merge(x=holdout_, y=holdout_ids_, by="id", all.x=T, all.y=F, sort=F)
+            rm(holdout_ids_)
+        gc()
+        
+        
+        
+        
+        
+        
+        
+        
+        return(1)
+    }
+    
+    
+    
+    
+    tv_gen_exp_sparsemats(p_longdf=myiris_long, p_id=id, p_target=petal_length, 
+                          p_tr_ids=myiris_tr_ids$id, p_te_ids=myiris_te_ids$id, p_ho_ids=myiris_ho_ids$id)
+    
+    
+    
+    
+    
+    
+    
+    
+# identify train/test + holdout split -------------------------------------
         
         # this doesn't necessarily have to happen first, this could have been done later after the long df creation
         set.seed(exp_seed)

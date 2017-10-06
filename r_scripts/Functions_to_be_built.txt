@@ -19,7 +19,7 @@ Sparse Matrix Creation:
 
 
 # EXPERIMENT SETUP (make this a separate function) ---------
-# Passin: long-form dataframe, train/test/holdout ids, y_ids (2 col df, answer and id)
+# Passin: long-form dataframe, unquoted id, unquoted targetvar, y_ids (2 col df, answer and id), train/test/holdout ids
 # this can also be used to create experiments where we're solving for a feature (stacked gen)
 6) split into train/test/holdout
 7) for each dataset: create id_num which is the as.numeric(as.factor(id))
