@@ -28,8 +28,61 @@ assert_that(sum(duplicated(joined$id)) == 0)
     
 # dummies ----------------------------------------------------------------
 
-    
+    # heavy dev in here right now. much of this needs to move to function defs.
 
+    
+    # take in character vector which is supposed to be factor, give back onehot encoding of the categories in data.frame
+    char_vec_to_dummy <- function(p_character_vector, p_colname, na.rm=F) {
+        # this function will convert a character vector to a dummy variable data.frame
+        if(is.factor(p_character_vector)) {p_character_vector <- as.character(p_character_vector)}
+        if(!grepl("_$", p_colname)) {p_colname <- paste0(p_colname, "_")}
+        p_character_vector[is.na(p_character_vector)] <- "__NA"
+        modmat_df <- data.frame(model.matrix(~p_character_vector + 0))
+        names(modmat_df) <- gsub("p_character_vector", p_colname, names(modmat_df))
+        if(na.rm) {
+            modmat_df <- modmat_df[, !grepl("__NA$", names(modmat_df))]
+        }
+        return(modmat_df)
+    }
+    
+    sapply(joined, class)
+
+
+    # for each column that starts with "tv_cat_", convert it to one hot encodings and append it to a list
+    # then turn that list into a data.frame so we can concat it to the main table
+    cols_to_dummy <- names(joined)[grepl("^tv_cat_", names(joined))]
+    len_dumcols <- length(cols_to_dummy)
+    ohe_list <- vector(mode='list', length = len_dumcols)
+    
+    ohe_df <- data.frame()
+    for(i in 1:len_dumcols) {
+        print(i)
+        ohe_df <- bind_rows(ohe_df, char_vec_to_dummy(p_character_vector = joined[, cols_to_dummy[i], drop=T],
+                                           p_colname = paste0(cols_to_dummy[i], "_ohe")))
+    }
+    
+    
+    
+    
+    
+    
+    myvec <- c("yes", "no", "yes", "no", NA, NA, "maybe")    
+    
+    x <- data.frame(char_vec_to_dummy(myvec, "myvec", na.rm=T))
+    x
+    
+    
+    myvec2 <- myvec
+    myvec2[is.na(myvec2)] <- "__NA"
+    myfac <- as.factor(myvec2)
+    myfac[is.na(myfac)] <- "__NA"
+    
+    is.character(myfac)
+    
+    myvec_df <- model.matrix(~myfac + 0)
+    
+        
+        
     
 # identify train/test + holdout split -------------------------------------
     set.seed(this_seed)

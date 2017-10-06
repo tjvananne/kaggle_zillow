@@ -4,19 +4,29 @@
 
 testFrame <- data.frame(First=sample(1:10, 20, replace=T),
                         Second=sample(1:20, 20, replace=T), Third=sample(1:10, 20, replace=T),
-                        Fourth=rep(c("Alice","Bob","Charlie","David"), 5),
+                        Fourth=rep(c("1", "3"), 10),
                         Fifth=rep(c("Edward","Frank","Georgia","Hank","Isaac"),4))
 
-testFrame
+testFrame2 <- testFrame[, 4:5]
 
+testFrame
+sapply(testFrame, class)
+length(unique(testFrame$Fourth))
 
 lapply(testFrame[,4:5], contrasts, contrasts = FALSE)
+
+
+
 
 model.matrix(~ ., data=testFrame, 
              contrasts.arg = lapply(testFrame[,4:5], contrasts, contrasts=FALSE))
 
 
+model.matrix(~., data=testFrame2, 
+             contrasts.arg = lapply(testFrame2, contrasts, contrasts=F))
+
 model.matrix(~ ., data=testFrame, 
              contrasts.arg = lapply(testFrame[,sapply(testFrame, is.factor)], contrasts, contrasts=FALSE))
 sapply(joined, class)
 
+?lapply
