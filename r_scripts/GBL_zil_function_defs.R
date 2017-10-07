@@ -407,4 +407,46 @@ tv_gen_exp_sparsemats <- function(p_longdf, p_id, p_tr_ids, p_te_ids, p_ho_ids, 
     
     
     
+
+
+
+# up to 7 way interactions of numeric features
+calc_2_way_interaction <- function(p_df, just_interactions=T, sparse=T) {
+    # pass in a data.frame
+    # defaults to pre-scaling & pre-centering your numeric features being passed in
+    # it doesn't hurt to rescale/recenter features twice, it just won't do anything
+    # defaults to only returning interactions and not the raw values
+    # defaults to sparse matrix being returned
+    # will also return feature names per sparse matrix "Dimnames"[[2]] values
+    
+    # no scaling or normalization, do that stuff outside of here if you want it
+    
+    # generate either the sparse or dense 
+    if(sparse) {
+        mat <- Matrix::sparse.model.matrix(~ .^2 - 1, p_df)
+    } else {
+        mat <- model.matrix(~ . ^2 - 1, p_df)
+    }
+    
+    # limit to just interactions if that's what we're after
+    if(just_interactions) {
+        nbr_cols <- ncol(p_df)
+        mat <- mat[, (nbr_cols + 1):ncol(mat)]
+    } 
+    
+    # standard interface for column names regardless of if it's sparse or dense matrix
+    if(sparse) {
+        col_names <- attr(mat, "Dimnames")[[2]]
+    } else {
+        col_names <- attr(mat, "dimnames")[[2]]
+    }
+    
+    # replace the ":" with something else to separate interaction features
+    col_names <- gsub(":", "_i_", col_names)
+    
+    # return 
+    return_list <- list(mat, col_names)
+    return(return_list)
+} 
+
     

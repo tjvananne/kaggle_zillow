@@ -5,6 +5,7 @@
 library(gtools)     # <-- combinations and permutations (for column name combos)
 library(assertthat) # <-- for testing
 library(xgboost)    # <-- for testing the creation of DMatrices
+library(caret)      # <-- for easier scaling 
 
 
 
@@ -40,17 +41,170 @@ df_num_na[1, 3] <- NA
 
 # concise function ---------------------------------------------------------------------------------------------
     
-    interactions <- 2
-    eval(parse(text=interactions))
-    
-    sparmat <- Matrix::sparse.model.matrix(~ . ^5 - 1, data=airquality)
-    dim(airquality)
-    dim(x)
-    sparmat_names <- attr(x, "Dimnames")[[2]]
-    
-    myiris <- iris
-    myiris$helloworld <- 1
+    #' one thing to keep in mind, model matrix with formula of (~ .^4) will make all of the 
+    #' interactions UP THROUGH four variables. You'll be returned all of the raw numeric 
+    #' variables, all of the two-way interactions, all of the three-way interactions, AND
+    #' finally all of the four-way interactions. So don't do a "^2" and a "^3" and a "^4" 
+    #' because you'll have a significant amount of duplication. Just do the maximum amount
+    #' of interaction that you plan on having at all, then feature select from there. I would
+    #' suggest doing something high at first like "^7" (crazy, I know) and then remove all of
+    #' the non-interaction variables.
 
+
+
+
+# write function ---------------------------------------------------------------------------
+
+    calc_7_way_interaction <- function(p_df, just_interactions=T, sparse=T) {
+        # pass in a data.frame
+        # defaults to pre-scaling & pre-centering your numeric features being passed in
+            # it doesn't hurt to rescale/recenter features twice, it just won't do anything
+        # defaults to only returning interactions and not the raw values
+        # defaults to sparse matrix being returned
+        # will also return feature names per sparse matrix "Dimnames"[[2]] values
+        
+        # no scaling or normalization, do that stuff outside of here if you want it
+        
+        # generate either the sparse or dense 
+        if(sparse) {
+            mat <- Matrix::sparse.model.matrix(~ .^7 - 1, p_df)
+        } else {
+            mat <- model.matrix(~ . ^7 - 1, p_df)
+        }
+        
+        # limit to just interactions if that's what we're after
+        if(just_interactions) {
+            nbr_cols <- ncol(p_df)
+            mat <- mat[, (nbr_cols + 1):ncol(mat)]
+        } 
+        
+        # standard interface for column names regardless of if it's sparse or dense matrix
+        if(sparse) {
+            col_names <- attr(mat, "Dimnames")[[2]]
+        } else {
+            col_names <- attr(mat, "dimnames")[[2]]
+        }
+        
+        # replace the ":" with something else to separate interaction features
+        col_names <- gsub(":", "_i_", col_names)
+        
+        # return 
+        return_list <- list(spmat, col_names)
+        return(return_list)
+    } 
+
+    
+
+    pprange <- preProcess(airquality, method="range")
+    aq_ranged <- predict(pprange, airquality)
+    
+    hist(aq_ranged$Ozone, col='light blue', breaks=20)
+    hist(airquality$Ozone, col='light green', breaks=20)
+    head(aq_ranged$Ozone)
+    summary(aq_ranged$Ozone)
+    summary(airquality$Ozone)
+    
+    x <- calc_7_way_interaction(airquality)
+    
+    
+    head(x)
+    
+    dim(x[[1]])
+    x[[2]]
+
+    
+
+
+
+# Cross validated question:
+    
+    # taking a small sample of "airquality" data
+    set.seed(2)
+    my_aq <- data.frame(airquality[sample(1:nrow(airquality), 100), ])
+    
+    # create a scaled/centered version
+    my_aq_pp_scaler <- caret::preProcess(my_aq, method=c("center", "scale"))
+    my_aq_scaled <- predict(my_aq_pp_scaler, my_aq)
+    
+    
+    # computing interactions with pre-scaled data
+    denmat_prescaled <- as.data.frame(model.matrix(~ .^2 - 1, data=my_aq_scaled))
+    hist(denmat_prescaled$`Ozone:Solar.R`, col='light blue', main="Pre-interaction-scale: Not Rescaled")  
+    
+        # 1) do I need to scale/center again?
+        denmat_pp_scaler <- caret::preProcess(denmat_prescaled, method=c("center", "scale"))
+        denmat_prescaled_scaled <- predict(denmat_pp_scaler, denmat_prescaled)
+        hist(denmat_prescaled_scaled$`Ozone:Solar.R`, col='light pink', main="Pre-interaction-scale: Also Rescaled")
+        
+        
+    
+    # postscaled - not scaling until AFTER interactions have been computed
+    denmat2 <- model.matrix(~ .^3 - 1, data=my_aq)
+    denmat3 <- denmat2[, (ncol(my_aq) + 1):ncol(denmat2)]
+    df3 <- as.data.frame(denmat3)
+    
+    
+    
+    denmat2_pp_scaler <- caret::preProcess(denmat2, method=c("center", "scale"))
+    denmat_postscaled <- as.data.frame(predict(denmat2_pp_scaler, denmat2))
+    hist(denmat_postscaled$`Ozone:Solar.R`, col='light green', main="No Pre-scale: Just Post-interaction-scale")        
+    
+    
+    # examine difference
+    denmat_scaled[1, 7:17]
+    denmat2_scaled[1, 7:17]
+    
+    denmat_df <- as.data.frame(denmat_scaled)
+    denmat2_df <- as.data.frame(denmat2_scaled)
+    
+    hist(denmat_df$`Ozone:Solar.R`, col='light blue', breaks=40)
+    hist(denmat2_df$`Ozone:Solar.R`, col='light blue', breaks=40)
+    
+
+
+# end cross validated question:
+
+
+
+
+    
+    my_aq <- data.frame(airquality)
+    sapply(my_aq, function(x) sum(is.na(x))) 
+    sum(complete.cases(my_aq)) # 111 complete cases; 153 rows total
+    
+    my_aq_pp_scaler <- caret::preProcess(my_aq, method=c("center", "scale"))
+    my_aq_scaled <- predict(my_aq_pp_scaler, my_aq)
+    
+    
+    
+    # prescaled
+    denmat <- model.matrix(~ .^4 - 1, data=my_aq_scaled)
+    denmat_pp_scaler <- caret::preProcess(denmat, method=c("center", "scale"))
+    denmat_scaled <- predict(denmat_pp_scaler, denmat)
+    
+    
+    # postscaled
+    denmat2 <- model.matrix(~ .^4 - 1, data=my_aq)
+    denmat2_pp_scaler <- caret::preProcess(denmat2, method=c("center", "scale"))
+    denmat2_scaled <- predict(denmat2_pp_scaler, denmat2)
+    
+    # examine difference
+    denmat_scaled[1, 7:17]
+    denmat2_scaled[1, 7:17]
+    
+    denmat_df <- as.data.frame(denmat_scaled)
+    denmat2_df <- as.data.frame(denmat2_scaled)
+    
+    hist(denmat_df$`Ozone:Solar.R`, col='light blue', breaks=40)
+    hist(denmat2_df$`Ozone:Solar.R`, col='light blue', breaks=40)
+    
+    
+    denmat_scaled[1, 1:10] == denmat2_scaled[1, 1:10]
+    
+    
+    round(denmat_scaled, 3) == round(denmat2_scaled, 3)
+        
+            
     
 # Clean Procedural code ----------------------------------------------------------------------------------------
     

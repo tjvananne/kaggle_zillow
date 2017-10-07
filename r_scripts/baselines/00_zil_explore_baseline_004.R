@@ -159,6 +159,137 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         hist(yhat_holdout, breaks=50, col='light blue')
         hist(y_train$logerror, breaks=50, col='light green')
     
+        
+        
+# mod2 - numeric interactions -----------------------------------------------------------------
+        
+    # manually select what cols you want from "joined"
+    # joined <- joined  # <-- this model we'll use all of joined
+    
+    # we have file (experiment) number, and then a model (within file) number
+    mod2_nbr <- "02"
+    mod2_longcache_fp <- paste0("cache/jlong_yids_file", exp_number, "_mod", mod2_nbr, ".RData")
+    mod2_dmatcache_fp <- paste0("cache/dmats_file", exp_number, "_mod", mod2_nbr, ".RData")
+    
+    # either load in cache file or build experiment files from scratch
+    if(file.exists(mod2_dmatcache_fp)) {
+        print("mod2 dmatcache file exists; loading it now...")
+        load(file=mod2_dmatcache_fp)
+    } else if(file.exists(mod2_longcache_fp)) { 
+        print("mod2 dmatcache file doesn't exist; loading in longcache file though...")
+        load(file=mod2_longcache_fp) 
+        mod2_exp <- tv_gen_exp_sparsemats(p_longdf=mod2_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+        gc()
+        save(mod2_exp, file=mod2_dmatcache_fp)
+    } else {
+        print("mod2 didn't have either cash file, generating dmat files now...")
+        
+        # split numeric / categorical features (features only)
+        mod2_feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
+        mod2_feats_num <- joined %>% select(mod2_feats_name_num)
+        
+        mod2_pp_rngr <- caret::preProcess(mod2_feats_num, method="range")
+        mod2_feats_num_rng <- predict(mod2_pp_rngr, mod2_feats_num)
+        mod2_feats_num_rng2 <- mod2_feats_num_rng * 100
+        
+        
+        sapply(mod2_feats_num_rng2, mean, na.rm=T)
+        sapply(mod2_feats_num_rng2)
+        
+        
+        gc()
+        rm(joined, y_holdout, y_test, y_train)
+        options(na.action="na.pass")
+        
+        
+        mod2_feats_num_small <- mod2_feats_num[1:10000,]
+        mod2_feats_num_small2 <- mod2_feats_num[1001:2000,]
+        x <- calc_2_way_interaction(p_df=mod2_feats_num_small)
+        dim(x[[1]])
+        
+        
+        df_profile <- data.frame(
+            recs = c(1000, 2000, 10000),
+            memory_use = c(15.6, 30.9, 153.1)
+        )
+        
+        
+        
+        # generate long data
+        mod2_jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=mod2_feats_name_num, p_catcols=mod2_feats_name_cat)
+        rm(joined)
+        gc()
+        
+        # save or load cache
+        # save(mod2_jlong, y_train, y_test, y_holdout, file=mod2_longcache_fp)  # <-- skip this to save space
+        
+        # generate dmat files
+        mod2_exp <- tv_gen_exp_sparsemats(p_longdf=mod2_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+        save(mod2_exp, file=mod2_dmatcache_fp)
+        lapply(mod2_exp, dim)
+        gc()
+    }
+    
+    # split exp files into separate dmats
+    mod2_dmat_tr <- mod2_exp$train
+    mod2_dmat_te <- mod2_exp$test
+    mod2_dmat_ho <- mod2_exp$holdout
+    mod2_dist_feats <- mod2_exp$features
+    
+    
+    # set up params search space and run it!
+    mod2_params <- list("objective" = "reg:linear", 
+                        "eval_metric" = "mae",
+                        "eta" = 0.01, 
+                        "max_depth" = 7, 
+                        "subsample" = 0.5, 
+                        "colsample_bytree" = 0.5,
+                        "lambda" = 0, 
+                        "alpha" = 1,
+                        "max_delta_step" = 1,
+                        "nthread" = 4)     
+    mod2_obj_min <- T
+    
+    # run CV
+    set.seed(exp_seed)
+    mod2_cv <- xgboost::xgb.cv(
+        data=mod2_dmat_tr,
+        params=mod2_params,
+        nrounds=10000,
+        nfold=5,
+        early_stopping_rounds=200
+    )
+    
+    
+    # identify best number of rounds
+    mod2_eval_log <- data.frame(mod2_cv$evaluation_log)
+    mod2_metric <- names(mod2_eval_log)[grepl("^test_", names(mod2_eval_log)) & grepl("_mean$", names(mod2_eval_log))]
+    if(mod2_obj_min) {
+        mod2_bestn_rounds <- which.min(mod2_eval_log[, mod2_metric])
+    } else {
+        mod2_bestn_rounds <- which.max(mod2_eval_log[, mod2_metric])
+    }
+    
+    
+    # run the real model
+    mod2_xgb <- xgboost::xgb.train(
+        data=mod2_dmat_tr,
+        params=mod2_params,
+        nrounds=mod2_bestn_rounds,
+        print_every_n=1
+    )
+    
+    
+    # feature importance
+    # dim(x_train_sp); length(unique(x_train$feature_name))
+    mod2_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(mod2_dist_feats$feature_name), model=mod2_xgb)
+    xgboost::xgb.plot.importance(mod2_xgb_imp[1:20,])
+    xgboost::xgb.plot.importance(mod2_xgb_imp[21:40,])
+        
+        
+        
+        
+# submission generation --------------------------------------------------------------------------
     
     # generate subs
     sub <- bind_rows(
