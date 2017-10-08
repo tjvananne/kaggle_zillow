@@ -1,10 +1,7 @@
 
 
-# same as 002 (sparse) but using the new helper functions to help build xgboost dmatrices quicker.
-# I'd like to start experimenting with different forms of ensembling in this experiment
-
-# this script is mainly for figuring out numeric interactions
-# the real heavy lifting here is happening on the aws ec2 instance
+#' Let's start predicting on categoricals
+#'
 
 
 # source in config and function defs
@@ -14,7 +11,7 @@ source('r_scripts/GBL_zil_function_defs.R')  # function definitions
 
 # config for this script / experiment:
 exp_seed <- 1776
-exp_number <- "004"
+exp_number <- "005"
 rdata_file <- file.path(GBL_PATH_TO_CACHE, paste0("all_files_for_00_zil_baseline", exp_number, ".RData"))
 rdata_exp_file <- file.path(GBL_PATH_TO_CACHE, paste0("experiment_files_00_zil_baseline", exp_number, ".RData"))
 read_in_file <- file.path(GBL_PATH_TO_DATA, "joined_checkpoint1.rds")
@@ -27,7 +24,7 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     joined <- readRDS(read_in_file)
     joined <- joined[!duplicated(joined$id), ]
     assert_that(sum(duplicated(joined$id)) == 0)
-    
+    joined <- joined %>% arrange(id)
     
     
 # identify train/test + holdout split -------------------------------------
@@ -118,7 +115,8 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         params=mod1_params,
         nrounds=10000,
         nfold=5,
-        early_stopping_rounds=200
+        early_stopping_rounds=200,
+        print_every_n = 2
     )
     
     
@@ -146,6 +144,7 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         mod1_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(mod1_dist_feats$feature_name), model=mod1_xgb)
         xgboost::xgb.plot.importance(mod1_xgb_imp[1:20,])
         xgboost::xgb.plot.importance(mod1_xgb_imp[21:40,])
+        xgboost::xgb.plot.importance(mod1_xgb_imp[41:60,])
         
         
         
@@ -166,8 +165,46 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         
 # mod2 - numeric interactions -----------------------------------------------------------------
         
-    # manually select what cols you want from "joined"
-    # joined <- joined  # <-- this model we'll use all of joined
+    #' ok, so this 005 / 02 model will be my first attempt at modeling a categorical variable
+    #' to be used as a feature itself. Ideally, we'd find one that is already fairly important
+    #' to logerror, hasn't been used in numeric form, and doesn't have too many missing values
+    #'     airconditioningtypeid
+    #'     regionidcity
+    #'     building_age_five
+    #'     bedroomcnt
+    #'     count_toilets
+    #'     longitude_twenty
+    #'     finsqft12
+        
+        
+    # read in joined data
+    joined <- readRDS(read_in_file)
+    joined <- joined[!duplicated(joined$id), ]
+    assert_that(sum(duplicated(joined$id)) == 0)
+    joined <- joined %>% arrange(id)
+        
+    
+    # joined is arranged by id
+    head(joined)
+    joined$tv_cat_airconditioningtypeid %>% table()
+    
+    set.seed(exp_seed)
+    mod2_y <- joined[, c("id", "tv_cat_airconditioningtypeid")]
+    mod2_y$target <- as.integer(as.factor(mod2_y$tv_cat_airconditioningtypeid)) - 1
+    table(mod2_y$target, mod2_y$tv_cat_airconditioningtypeid)
+    mod2_y$tv_cat_airconditioningtypeid <- NULL
+    mod2_y_train <- mod2_y[ !is.na(mod2_y$target), ]
+    mod2_y_test <- mod2_y[ is.na(mod2_y$target), ]
+    mod2_ho_indx <- caret::createDataPartition(mod2_y_train$target, p=0.2, list=F)
+    mod2_y_holdout <- mod2_y_train[mod2_ho_indx, ]
+    mod2_y_train <- mod2_y_train[-mod2_ho_indx, ]
+    rm(mod2_ho_indx)
+    
+        assert_that(length(intersect(mod2_y_train$id, mod2_y_holdout$target)) == 0)
+    
+    joined$tv_cat_airconditioningtypeid <- NULL
+    gc()
+        
     
     # we have file (experiment) number, and then a model (within file) number
     mod2_nbr <- "02"
@@ -178,94 +215,22 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     if(file.exists(mod2_dmatcache_fp)) {
         print("mod2 dmatcache file exists; loading it now...")
         load(file=mod2_dmatcache_fp)
-    } else if(file.exists(mod2_longcache_fp)) { 
-        print("mod2 dmatcache file doesn't exist; loading in longcache file though...")
-        load(file=mod2_longcache_fp) 
-        mod2_exp <- tv_gen_exp_sparsemats(p_longdf=mod2_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
-        gc()
-        save(mod2_exp, file=mod2_dmatcache_fp)
     } else {
         print("mod2 didn't have either cash file, generating dmat files now...")
         
         # split numeric / categorical features (features only)
         mod2_feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
-        mod2_feats_num <- joined %>% select(mod2_feats_name_num)
-        
-        mod2_pp_rngr <- caret::preProcess(mod2_feats_num, method="range")
-        mod2_feats_num_rng <- predict(mod2_pp_rngr, mod2_feats_num)
-        mod2_feats_num_rng_50x <- mod2_feats_num_rng * 50
-        
-            options(na.action="na.pass")
-            dat1 <- mod2_feats_num_rng_50x[1:100,]
-            dat2 <- mod2_feats_num_rng_50x[101:200,]
-            x1 <- calc_2_way_interaction(dat1, sparse=T)
-            x2 <- calc_2_way_interaction(dat2, sparse=T)
-            
-            sum(!is.na(x1))
-            
-            dim(x1)
-            bind_rows(x1, x2)
-            x3 <- rbind(x1, x2)
-            x3 <- rBind(x1, x2)
-            
-        
-        sapply(mod2_feats_num_rng, mean, na.rm=T)
-        sapply(mod2_feats_num_rng_50x, mean, na.rm=T)
-        sapply(mod2_feats_num_rng_50x, max, na.rm=T)
-        sapply(mod2_feats_num_rng2)
-        
-        
-        gc()
-        rm(joined, y_holdout, y_test, y_train)
-        options(na.action="na.pass")
-        
-        
-        batch_size <- 5000
-        iters <- ceiling(nrow(mod2_feats_num_rng_50x) / 5000)
-        start_indx <- 1
-        end_indx <- batch_size
-        
-        
-        for(i in 1:iters) {
-            
-        
-            if(i == iters) {
-                remainder <- nrow(mod2_feats_num_rng_50x) %% batch_size
-                end_indx <- start_indx + remainder - 1
-            } else {
-                end_indx <- (i * batch_size)
-            }
-                
-            print(start_indx); print(end_indx)
-            # mod2_feats_num_small <- mod2_feats_num_rng_50x[start_indx:end_indx,]
-            # system.time(x <- calc_2_way_interaction(p_df=mod2_feats_num_small))
-            start_indx <- start_indx + batch_size
-            
-            # x3 <- rbind2(x[[1]], x2[[1]])
-            
-            # dim(x[[1]])
-            # dim(x2[[1]])
-        }
-        
-            
-            
-        df_profile <- data.frame(
-            recs = c(1000, 2000, 10000),
-            memory_use = c(15.6, 30.9, 153.1)
-        )
-        
-        
+        mod2_feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
         
         # generate long data
+        gc()
         mod2_jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=mod2_feats_name_num, p_catcols=mod2_feats_name_cat)
         rm(joined)
         gc()
         
-        # save or load cache
-        # save(mod2_jlong, y_train, y_test, y_holdout, file=mod2_longcache_fp)  # <-- skip this to save space
-        
         # generate dmat files
-        mod2_exp <- tv_gen_exp_sparsemats(p_longdf=mod2_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+        mod2_exp <- tv_gen_exp_sparsemats(p_longdf=mod2_jlong, p_id=id, p_tr_ids=mod2_y_train, p_te_ids=mod2_y_test, 
+                                          p_ho_ids=mod2_y_holdout, p_target="target")
         save(mod2_exp, file=mod2_dmatcache_fp)
         lapply(mod2_exp, dim)
         gc()
@@ -279,14 +244,16 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     
     
     # set up params search space and run it!
-    mod2_params <- list("objective" = "reg:linear", 
-                        "eval_metric" = "mae",
+    mod2_params <- list(
+                        "objective" = "multi:softmax", 
+                        "eval_metric" = "mlogloss",
+                        "num_class" = 3,
                         "eta" = 0.01, 
                         "max_depth" = 7, 
                         "subsample" = 0.5, 
                         "colsample_bytree" = 0.5,
-                        "lambda" = 0, 
-                        "alpha" = 1,
+                        "lambda" = 1, 
+                        "alpha" = 0,
                         "max_delta_step" = 1,
                         "nthread" = 4)     
     mod2_obj_min <- T

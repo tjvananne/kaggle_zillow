@@ -197,12 +197,15 @@ tv_gen_numcat_long <- function(p_df, p_id, p_numcols=NULL, p_catcols=NULL,  p_sc
         # isolate numeric features, scale/center (if applicable), combine
         df_num <- select(p_df, p_numcols)
         
+        gc()
+        
         if(p_scale) {
             print("scaling numeric columns....")
             
             myproc_scaler_center <- caret::preProcess(df_num, method=c("scale", "center"))
             df_num <- predict(myproc_scaler_center, df_num)  # <-- overwriting the existing non-scaled numeric values
-        }    
+        }
+        gc()
         # add ID back in
         df_num <- cbind(id=select(p_df, !!this_id), df_num)
         gc()
@@ -220,6 +223,7 @@ tv_gen_numcat_long <- function(p_df, p_id, p_numcols=NULL, p_catcols=NULL,  p_sc
     if(!is.null(p_catcols)) {
         # create a collector dataframe
         df_cats <- vector("list", length(p_catcols))
+        gc()
         
         print("looping through categorical columns....")
         # not the most efficient way, but it'll get the job done
@@ -231,10 +235,13 @@ tv_gen_numcat_long <- function(p_df, p_id, p_numcols=NULL, p_catcols=NULL,  p_sc
             df_feats_ <- select(p_df, !!this_id, p_catcols[i])
             # one hot encoding
             df_feats_$value <- 1
+            gc()
+            
             names(df_feats_) <- c("id", "feature_name", "value")
             df_feats_ <- df_feats_ %>%
                 filter(!is.na(feature_name))
             df_cats[[i]] <- df_feats_
+            gc()
         }
         gc() # <-- move this into the loop if things get crazy and we need more memory
         df_cat <- bind_rows(df_cats); rm(df_cats); gc()
@@ -253,9 +260,10 @@ tv_gen_numcat_long <- function(p_df, p_id, p_numcols=NULL, p_catcols=NULL,  p_sc
     }
     
     print("final sort on the data's id field....")
+    gc()
     # for consistency sake, let's arrange it by the id
-    feats_all_long <- feats_all_long %>%
-        arrange(!!this_id)
+    # feats_all_long <- feats_all_long %>%
+        # arrange(!!this_id)
     
     return(feats_all_long)
 }
