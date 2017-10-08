@@ -190,10 +190,11 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         
         mod2_pp_rngr <- caret::preProcess(mod2_feats_num, method="range")
         mod2_feats_num_rng <- predict(mod2_pp_rngr, mod2_feats_num)
-        mod2_feats_num_rng2 <- mod2_feats_num_rng * 100
+        mod2_feats_num_rng_50x <- mod2_feats_num_rng * 50
         
-        
-        sapply(mod2_feats_num_rng2, mean, na.rm=T)
+        sapply(mod2_feats_num_rng, mean, na.rm=T)
+        sapply(mod2_feats_num_rng_50x, mean, na.rm=T)
+        sapply(mod2_feats_num_rng_50x, max, na.rm=T)
         sapply(mod2_feats_num_rng2)
         
         
@@ -202,12 +203,35 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         options(na.action="na.pass")
         
         
-        mod2_feats_num_small <- mod2_feats_num[1:10000,]
-        mod2_feats_num_small2 <- mod2_feats_num[1001:2000,]
-        x <- calc_2_way_interaction(p_df=mod2_feats_num_small)
-        dim(x[[1]])
+        batch_size <- 5000
+        iters <- ceiling(nrow(mod2_feats_num_rng_50x) / 5000)
+        start_indx <- 1
+        end_indx <- batch_size
         
         
+        for(i in 1:iters) {
+            
+        
+            if(i == iters) {
+                remainder <- nrow(mod2_feats_num_rng_50x) %% batch_size
+                end_indx <- start_indx + remainder - 1
+            } else {
+                end_indx <- (i * batch_size)
+            }
+                
+            print(start_indx); print(end_indx)
+            # mod2_feats_num_small <- mod2_feats_num_rng_50x[start_indx:end_indx,]
+            # system.time(x <- calc_2_way_interaction(p_df=mod2_feats_num_small))
+            start_indx <- start_indx + batch_size
+            
+            # x3 <- rbind2(x[[1]], x2[[1]])
+            
+            # dim(x[[1]])
+            # dim(x2[[1]])
+        }
+        
+            
+            
         df_profile <- data.frame(
             recs = c(1000, 2000, 10000),
             memory_use = c(15.6, 30.9, 153.1)

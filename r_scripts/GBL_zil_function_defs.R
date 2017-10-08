@@ -434,19 +434,21 @@ calc_2_way_interaction <- function(p_df, just_interactions=T, sparse=T) {
         mat <- mat[, (nbr_cols + 1):ncol(mat)]
     } 
     
-    # standard interface for column names regardless of if it's sparse or dense matrix
-    if(sparse) {
-        col_names <- attr(mat, "Dimnames")[[2]]
-    } else {
-        col_names <- attr(mat, "dimnames")[[2]]
-    }
+    return(mat)
     
-    # replace the ":" with something else to separate interaction features
-    col_names <- gsub(":", "_i_", col_names)
-    
-    # return 
-    return_list <- list(mat, col_names)
-    return(return_list)
+        # # standard interface for column names regardless of if it's sparse or dense matrix
+        # if(sparse) {
+        #     col_names <- attr(mat, "Dimnames")[[2]]
+        # } else {
+        #     col_names <- attr(mat, "dimnames")[[2]]
+        # }
+        # 
+        # # replace the ":" with something else to separate interaction features
+        # col_names <- gsub(":", "_i_", col_names)
+        # 
+        # # return 
+        # return_list <- list(mat, col_names)
+        # return(return_list)
 } 
 
     
