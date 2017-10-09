@@ -244,11 +244,12 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     
     
     # set up params search space and run it!
+    # for the rapid dev/test of these first level stackers, increase the "eta"
     mod2_params <- list(
-                        "objective" = "multi:softmax", 
+                        "objective" = "multi:softprob",  # softmax will pick one, softprob will report all probabilities
                         "eval_metric" = "mlogloss",
                         "num_class" = 3,
-                        "eta" = 0.01, 
+                        "eta" = 0.05,  # 0.01 is way to slow
                         "max_depth" = 7, 
                         "subsample" = 0.5, 
                         "colsample_bytree" = 0.5,
@@ -265,7 +266,7 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         params=mod2_params,
         nrounds=10000,
         nfold=5,
-        early_stopping_rounds=200
+        early_stopping_rounds=50
     )
     
     
@@ -295,7 +296,17 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     xgboost::xgb.plot.importance(mod2_xgb_imp[21:40,])
         
         
+    # make predictions (this is generally kinda weird with multiple classes)
+    mod2_predictions <- predict(mod2_xgb, mod2_dmat_ho)
+    class(mod2_predictions)
+    length(mod2_predictions); dim(mod2_dmat_ho)
+    
+    table(mod2_predictions)
+    
+    # things to look for, are we just predicting it to be the most common class?
+    # are we just giving every record the same score arbitrarily?
         
+    
         
 # submission generation --------------------------------------------------------------------------
     

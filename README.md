@@ -27,4 +27,5 @@ predicting log error - Kaggle competition
 	- Finish numeric interactions (maybe explore taking it up to 3/4 way interactions)
 	- Make categorical features target variables, then use the probability predictions of each class of the categorical feature as features to the final model
 		- starting with `tv_cat_airconditioningtypeid`
+		- cat property land use might be a good next one to try
 	- Find interactions between the predicted probabilities of above bullet point
