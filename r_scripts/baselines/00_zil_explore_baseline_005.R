@@ -297,11 +297,12 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         
         
     # make predictions (this is generally kinda weird with multiple classes)
-    mod2_predictions <- predict(mod2_xgb, mod2_dmat_ho)
+    mod2_predictions <- matrix(predict(mod2_xgb, mod2_dmat_ho), ncol=3, byrow = T)
     class(mod2_predictions)
     length(mod2_predictions); dim(mod2_dmat_ho)
+    length(mod2_predictions)
     
-    table(mod2_predictions)
+    
     
     # things to look for, are we just predicting it to be the most common class?
     # are we just giving every record the same score arbitrarily?
