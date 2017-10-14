@@ -1,7 +1,15 @@
 
 
 #' Let's start predicting on categoricals
-#'
+#' 
+
+#' I need to scale this to multiple machines or I'll never finish...
+#' Sending a package up to AWS:
+#'     1) "joined_checkpoint1.rds" - this is the file after cleaning / building features
+#'     2) script from mod2 - categorical and down
+#'     3) GBL_zil_config.R
+#'     4) GBL_zil_function_defs.R
+
 
 
 # source in config and function defs
@@ -19,152 +27,165 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     
     
     
-# load data
-    list.files(GBL_PATH_TO_DATA)
-    joined <- readRDS(read_in_file)
-    joined <- joined[!duplicated(joined$id), ]
-    assert_that(sum(duplicated(joined$id)) == 0)
-    joined <- joined %>% arrange(id)
-    
-    
-# identify train/test + holdout split -------------------------------------
-    set.seed(exp_seed)
-    joined <- joined %>% arrange(id)
-    y <- joined[, c("id", "logerror")]
-    y_test <- y[is.na(y$logerror), ]
-    y_train <- y[!is.na(y$logerror), ]
-    holdout_indx <- caret::createDataPartition(y=y_train$logerror, p=0.15, list=F)
-    y_holdout <- y_train[holdout_indx, ]
-    y_train <- y_train[-holdout_indx, ]
-    rm(holdout_indx, y)
-    gc()
-        
-            # design quality assertions
-            assert_that(length(intersect(y_train$id, y_holdout$id)) == 0)
-            assert_that(length(intersect(y_train$id, y_test$id)) == 0)
-            assert_that(length(intersect(y_test$id, y_holdout$id)) == 0)
+# # load data ---------
+#     list.files(GBL_PATH_TO_DATA)
+#     joined <- readRDS(read_in_file)
+#     joined <- joined[!duplicated(joined$id), ]
+#     assert_that(sum(duplicated(joined$id)) == 0)
+#     joined <- joined %>% arrange(id)
+#     
+#     
+# # identify train/test + holdout split -------------------------------------
+#     set.seed(exp_seed)
+#     joined <- joined %>% arrange(id)
+#     y <- joined[, c("id", "logerror")]
+#     y_test <- y[is.na(y$logerror), ]
+#     y_train <- y[!is.na(y$logerror), ]
+#     holdout_indx <- caret::createDataPartition(y=y_train$logerror, p=0.15, list=F)
+#     y_holdout <- y_train[holdout_indx, ]
+#     y_train <- y_train[-holdout_indx, ]
+#     rm(holdout_indx, y)
+#     gc()
+#         
+#             # design quality assertions
+#             assert_that(length(intersect(y_train$id, y_holdout$id)) == 0)
+#             assert_that(length(intersect(y_train$id, y_test$id)) == 0)
+#             assert_that(length(intersect(y_test$id, y_holdout$id)) == 0)
             
             
 # mod1 (all data) ----------------------------------------------
         
             
-    # manually select what cols you want from "joined"
-    # joined <- joined  # <-- this model we'll use all of joined
-            
-    # we have file (experiment) number, and then a model (within file) number
-    mod1_nbr <- "01"
-    mod1_longcache_fp <- paste0("cache/jlong_yids_file", exp_number, "_mod", mod1_nbr, ".RData")
-    mod1_dmatcache_fp <- paste0("cache/dmats_file", exp_number, "_mod", mod1_nbr, ".RData")
-    
-    # either load in cache file or build experiment files from scratch
-    if(file.exists(mod1_dmatcache_fp)) {
-        print("mod1 dmatcache file exists; loading it now...")
-        load(file=mod1_dmatcache_fp)
-    } else if(file.exists(mod1_longcache_fp)) { 
-        print("mod1 dmatcache file doesn't exist; loading in longcache file though...")
-        load(file=mod1_longcache_fp) 
-        mod1_exp <- tv_gen_exp_sparsemats(p_longdf=mod1_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
-        gc()
-        save(mod1_exp, file=mod1_dmatcache_fp)
-    } else {
-        print("mod1 didn't have either cash file, generating dmat files now...")
+    # # manually select what cols you want from "joined"
+    # # joined <- joined  # <-- this model we'll use all of joined
+    #         
+    # # we have file (experiment) number, and then a model (within file) number
+    # mod1_nbr <- "01"
+    # mod1_longcache_fp <- paste0("cache/jlong_yids_file", exp_number, "_mod", mod1_nbr, ".RData")
+    # mod1_dmatcache_fp <- paste0("cache/dmats_file", exp_number, "_mod", mod1_nbr, ".RData")
+    # 
+    # # either load in cache file or build experiment files from scratch
+    # if(file.exists(mod1_dmatcache_fp)) {
+    #     print("mod1 dmatcache file exists; loading it now...")
+    #     load(file=mod1_dmatcache_fp)
+    # } else if(file.exists(mod1_longcache_fp)) { 
+    #     print("mod1 dmatcache file doesn't exist; loading in longcache file though...")
+    #     load(file=mod1_longcache_fp) 
+    #     mod1_exp <- tv_gen_exp_sparsemats(p_longdf=mod1_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+    #     gc()
+    #     save(mod1_exp, file=mod1_dmatcache_fp)
+    # } else {
+    #     print("mod1 didn't have either cash file, generating dmat files now...")
+    #     
+    #     # split numeric / categorical features (features only)
+    #     mod1_feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
+    #     mod1_feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
+    #     
+    #     # generate long data
+    #     mod1_jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=mod1_feats_name_num, p_catcols=mod1_feats_name_cat)
+    #     rm(joined)
+    #     gc()
+    #     
+    #     # save or load cache
+    #     # save(mod1_jlong, y_train, y_test, y_holdout, file=mod1_longcache_fp)  # <-- skip this to save space
+    #     
+    #     # generate dmat files
+    #     mod1_exp <- tv_gen_exp_sparsemats(p_longdf=mod1_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
+    #     save(mod1_exp, file=mod1_dmatcache_fp)
+    #     lapply(mod1_exp, dim)
+    #     gc()
+    # }
+    #     
+    # # split exp files into separate dmats
+    # mod1_dmat_tr <- mod1_exp$train
+    # mod1_dmat_te <- mod1_exp$test
+    # mod1_dmat_ho <- mod1_exp$holdout
+    # mod1_dist_feats <- mod1_exp$features
+    # 
+    # 
+    # # set up params search space and run it!
+    # mod1_params <- list("objective" = "reg:linear", 
+    #                    "eval_metric" = "mae",
+    #                    "eta" = 0.01, 
+    #                    "max_depth" = 7, 
+    #                    "subsample" = 0.5, 
+    #                    "colsample_bytree" = 0.5,
+    #                    "lambda" = 0, 
+    #                    "alpha" = 1,
+    #                    "max_delta_step" = 1,
+    #                    "nthread" = 4)     
+    # mod1_obj_min <- T
+    # 
+    # # run CV
+    # set.seed(exp_seed)
+    # mod1_cv <- xgboost::xgb.cv(
+    #     data=mod1_dmat_tr,
+    #     params=mod1_params,
+    #     nrounds=10000,
+    #     nfold=5,
+    #     early_stopping_rounds=200,
+    #     print_every_n = 2
+    # )
+    # 
+    # 
+    # # identify best number of rounds
+    # mod1_eval_log <- data.frame(mod1_cv$evaluation_log)
+    # mod1_metric <- names(mod1_eval_log)[grepl("^test_", names(mod1_eval_log)) & grepl("_mean$", names(mod1_eval_log))]
+    # if(mod1_obj_min) {
+    #     mod1_bestn_rounds <- which.min(mod1_eval_log[, mod1_metric])
+    # } else {
+    #     mod1_bestn_rounds <- which.max(mod1_eval_log[, mod1_metric])
+    # }
+    # 
+    # 
+    # # run the real model
+    # mod1_xgb <- xgboost::xgb.train(
+    #     data=mod1_dmat_tr,
+    #     params=mod1_params,
+    #     nrounds=mod1_bestn_rounds,
+    #     print_every_n=1
+    # )
+    # 
+    # 
+    #     # feature importance
+    #     # dim(x_train_sp); length(unique(x_train$feature_name))
+    #     mod1_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(mod1_dist_feats$feature_name), model=mod1_xgb)
+    #     xgboost::xgb.plot.importance(mod1_xgb_imp[1:20,])
+    #     xgboost::xgb.plot.importance(mod1_xgb_imp[21:40,])
+    #     xgboost::xgb.plot.importance(mod1_xgb_imp[41:60,])
+    #     
+    #     
+    #     
+    # 
+    # # predict
+    # yhat_holdout <- predict(this_xgb, x_holdout_sp)
+    # y_holdout$yhat <- yhat_holdout
+    # mean(abs(y_holdout$logerror - y_holdout$yhat))
+    # y_train$yhat <- predict(this_xgb, x_train_sp)
+    # y_test$yhat <- predict(this_xgb, x_test_sp)
+    # 
+    # 
+    #     # compare prediction distribution vs real distribution
+    #     hist(yhat_holdout, breaks=50, col='light blue')
+    #     hist(y_train$logerror, breaks=50, col='light green')
+    # 
         
-        # split numeric / categorical features (features only)
-        mod1_feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
-        mod1_feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
         
-        # generate long data
-        mod1_jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=mod1_feats_name_num, p_catcols=mod1_feats_name_cat)
-        rm(joined)
-        gc()
+# mod2 - categorical -----------------------------------------------------------------
         
-        # save or load cache
-        # save(mod1_jlong, y_train, y_test, y_holdout, file=mod1_longcache_fp)  # <-- skip this to save space
-        
-        # generate dmat files
-        mod1_exp <- tv_gen_exp_sparsemats(p_longdf=mod1_jlong, p_id=id, p_tr_ids=y_train, p_te_ids=y_test, p_ho_ids=y_holdout, p_target="logerror")
-        save(mod1_exp, file=mod1_dmatcache_fp)
-        lapply(mod1_exp, dim)
-        gc()
-    }
-        
-    # split exp files into separate dmats
-    mod1_dmat_tr <- mod1_exp$train
-    mod1_dmat_te <- mod1_exp$test
-    mod1_dmat_ho <- mod1_exp$holdout
-    mod1_dist_feats <- mod1_exp$features
-    
-    
-    # set up params search space and run it!
-    mod1_params <- list("objective" = "reg:linear", 
-                       "eval_metric" = "mae",
-                       "eta" = 0.01, 
-                       "max_depth" = 7, 
-                       "subsample" = 0.5, 
-                       "colsample_bytree" = 0.5,
-                       "lambda" = 0, 
-                       "alpha" = 1,
-                       "max_delta_step" = 1,
-                       "nthread" = 4)     
-    mod1_obj_min <- T
-    
-    # run CV
-    set.seed(exp_seed)
-    mod1_cv <- xgboost::xgb.cv(
-        data=mod1_dmat_tr,
-        params=mod1_params,
-        nrounds=10000,
-        nfold=5,
-        early_stopping_rounds=200,
-        print_every_n = 2
-    )
-    
-    
-    # identify best number of rounds
-    mod1_eval_log <- data.frame(mod1_cv$evaluation_log)
-    mod1_metric <- names(mod1_eval_log)[grepl("^test_", names(mod1_eval_log)) & grepl("_mean$", names(mod1_eval_log))]
-    if(mod1_obj_min) {
-        mod1_bestn_rounds <- which.min(mod1_eval_log[, mod1_metric])
-    } else {
-        mod1_bestn_rounds <- which.max(mod1_eval_log[, mod1_metric])
-    }
-    
-    
-    # run the real model
-    mod1_xgb <- xgboost::xgb.train(
-        data=mod1_dmat_tr,
-        params=mod1_params,
-        nrounds=mod1_bestn_rounds,
-        print_every_n=1
-    )
-    
-    
-        # feature importance
-        # dim(x_train_sp); length(unique(x_train$feature_name))
-        mod1_xgb_imp <- xgboost::xgb.importance(feature_names = as.character(mod1_dist_feats$feature_name), model=mod1_xgb)
-        xgboost::xgb.plot.importance(mod1_xgb_imp[1:20,])
-        xgboost::xgb.plot.importance(mod1_xgb_imp[21:40,])
-        xgboost::xgb.plot.importance(mod1_xgb_imp[41:60,])
-        
-        
-        
-    
-    # predict
-    yhat_holdout <- predict(this_xgb, x_holdout_sp)
-    y_holdout$yhat <- yhat_holdout
-    mean(abs(y_holdout$logerror - y_holdout$yhat))
-    y_train$yhat <- predict(this_xgb, x_train_sp)
-    y_test$yhat <- predict(this_xgb, x_test_sp)
-    
-    
-        # compare prediction distribution vs real distribution
-        hist(yhat_holdout, breaks=50, col='light blue')
-        hist(y_train$logerror, breaks=50, col='light green')
-    
-        
-        
-# mod2 - numeric interactions -----------------------------------------------------------------
-        
+    #' 1)   read in joined
+    #' 2)   up/down sample the various values (if categorical - well you can do this with regression.. not the point)
+    #' 2.5) if upsampled, make a new temp id and map the existing id to the new one (functions must obtain unique "id" values)
+    #' 3)   split out the id/target combos into train, test will be the missing/NAs, then split a holdout off of train
+    #' 4)   split numeric and character columns
+    #' 5)   pass in relevant info to generate our long data file
+    #' 5)   pass that long data file in with our target/ids to generate dmatrix objects
+    #' 6)   run cv to determine best number of rounds to use for building actual model
+    #' 7)   use best nrounds from prev step to build actual model
+    #' 7.5) highly suggest caching the model at this point...
+    #' 8)   
+
+
     #' ok, so this 005 / 02 model will be my first attempt at modeling a categorical variable
     #' to be used as a feature itself. Ideally, we'd find one that is already fairly important
     #' to logerror, hasn't been used in numeric form, and doesn't have too many missing values
@@ -176,20 +197,47 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     #'     longitude_twenty
     #'     finsqft12
         
+    #' understanding what we're doing here...
+    #'    1) Interactively inspect and build the model and check for cheaters (and upsample / downsample where necessary)
+    #'    2) when satisfied, cache the model (and char vector of distinct features used)
+    #'    3) then we can just read in the cached model, filter data to distinct features that
+    #'       should be used in the model, and use it to predict on all data     
+    
+            
+    #  if we're testing / inspecting this model for results, make this flag true
+    # if we're ready to apply a model to the data and save the results out somewhere, make it False
+    mod2_test <- T
         
     # read in joined data
     joined <- readRDS(read_in_file)
     joined <- joined[!duplicated(joined$id), ]
     assert_that(sum(duplicated(joined$id)) == 0)
     joined <- joined %>% arrange(id)
+    
+        assert_that(sum(duplicated(joined$id)) == 0)
+    
+    sum(is.na(joined$tv_cat_airconditioningtypeid)) / nrow(joined)  # 72% missing
         
     
     # joined is arranged by id
-    head(joined)
-    joined$tv_cat_airconditioningtypeid %>% table()
+    joined$tv_cat_airconditioningtypeid %>% table()  # 742k 1, 58k 2, 8.7k 3
+    mod2_num_classes <- 3
+    # ac_id 1 downsampled, ac_id 2 and 3 are upsampled, all NA are included
+    set.seed(exp_seed)
+    mod2_joined <- bind_rows(joined %>% filter(tv_cat_airconditioningtypeid == 'tv_cat_airconditioningtypeid_1') %>% sample_n(100000),
+                         joined %>% filter(tv_cat_airconditioningtypeid == 'tv_cat_airconditioningtypeid_2') %>% sample_n(100000, replace=T),
+                         joined %>% filter(tv_cat_airconditioningtypeid == 'tv_cat_airconditioningtypeid_3') %>% sample_n(100000, replace=T),
+                         joined %>% filter(is.na(tv_cat_airconditioningtypeid))   # %>% sample_n(300000, replace=F)  # <-- should we even limit this at all?
+    ) %>% sample_n(nrow(.), replace=F)
+    
+    mod2_joined <- mod2_joined %>% arrange(id)
+    mod2_joined_mapping <- data.frame(real_id = mod2_joined$id, id = 1:nrow(mod2_joined))
+    mod2_joined$id <- 1:nrow(mod2_joined)
+    
+        assert_that(sum(duplicated(mod2_joined$id)) == 0)
     
     set.seed(exp_seed)
-    mod2_y <- joined[, c("id", "tv_cat_airconditioningtypeid")]
+    mod2_y <- mod2_joined[, c("id", "tv_cat_airconditioningtypeid")]
     mod2_y$target <- as.integer(as.factor(mod2_y$tv_cat_airconditioningtypeid)) - 1
     table(mod2_y$target, mod2_y$tv_cat_airconditioningtypeid)
     mod2_y$tv_cat_airconditioningtypeid <- NULL
@@ -200,9 +248,13 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     mod2_y_train <- mod2_y_train[-mod2_ho_indx, ]
     rm(mod2_ho_indx)
     
-        assert_that(length(intersect(mod2_y_train$id, mod2_y_holdout$target)) == 0)
-    
-    joined$tv_cat_airconditioningtypeid <- NULL
+        assert_that(length(intersect(mod2_y_train$id, mod2_y_holdout$id)) == 0)
+        assert_that(length(intersect(mod2_y_test$id, mod2_y_train$id)) == 0)
+        
+    # remove target (and any/all cheaters), heating appeared to be a cheater
+    # keep in mind, we don't want these models to be perfect, we want some rough edges to distinguish what's going on
+    mod2_remcols <- c("tv_cat_airconditioningtypeid", "logerror", "tv_cat_heatingorsystemtypeid") 
+    mod2_joined <- mod2_joined[, !names(mod2_joined) %in% mod2_remcols]
     gc()
         
     
@@ -219,13 +271,13 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         print("mod2 didn't have either cash file, generating dmat files now...")
         
         # split numeric / categorical features (features only)
-        mod2_feats_name_num <- setdiff(names(joined)[sapply(joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
-        mod2_feats_name_cat <- setdiff(names(joined)[sapply(joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
+        mod2_feats_name_num <- setdiff(names(mod2_joined)[sapply(mod2_joined, class) %in% c("numeric", "integer")], c("id", "logerror", "transactiondate"))
+        mod2_feats_name_cat <- setdiff(names(mod2_joined)[sapply(mod2_joined, class) %in% c("character", "factor")], c("id", "logerror", "transactiondate"))
         
         # generate long data
         gc()
-        mod2_jlong <- tv_gen_numcat_long(p_df=joined, p_id=id, p_numcols=mod2_feats_name_num, p_catcols=mod2_feats_name_cat)
-        rm(joined)
+        mod2_jlong <- tv_gen_numcat_long(p_df=mod2_joined, p_id=id, p_numcols=mod2_feats_name_num, p_catcols=mod2_feats_name_cat)
+        rm(mod2_joined)
         gc()
         
         # generate dmat files
@@ -248,15 +300,33 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     mod2_params <- list(
                         "objective" = "multi:softprob",  # softmax will pick one, softprob will report all probabilities
                         "eval_metric" = "mlogloss",
-                        "num_class" = 3,
-                        "eta" = 0.05,  # 0.01 is way to slow
+                        "num_class" = mod2_num_classes,
+                        "eta" = 0.05,  # 0.01 is way too slow
                         "max_depth" = 7, 
-                        "subsample" = 0.5, 
-                        "colsample_bytree" = 0.5,
+                        "subsample" = 0.6, 
+                        "colsample_bytree" = 0.4,
                         "lambda" = 1, 
                         "alpha" = 0,
                         "max_delta_step" = 1,
+                        # scale_pos_weight     # can you use this in multi class?
                         "nthread" = 4)     
+    
+                                        # bestnrounds=2164 / cv test-mlogloss: 0.0366 / holdout mlogloss: 
+                                        # mod2_params <- list(
+                                        #     "objective" = "multi:softprob",  # softmax will pick one, softprob will report all probabilities
+                                        #     "eval_metric" = "mlogloss",
+                                        #     "num_class" = mod2_num_classes,
+                                        #     "eta" = 0.05,  # 0.01 is way to slow
+                                        #     "max_depth" = 7,                 # let's use lower complexity 1st round models for quicker models
+                                        #     "subsample" = 0.6, 
+                                        #     "colsample_bytree" = 0.4,
+                                        #     "lambda" = 1, 
+                                        #     "alpha" = 0,
+                                        #     "max_delta_step" = 1,
+                                        #     # scale_pos_weight     # can you use this in multi class?
+                                        #     "nthread" = 4)     
+    
+    
     mod2_obj_min <- T
     
     # run CV
@@ -281,11 +351,15 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
     
     
     # run the real model
-    mod2_xgb <- xgboost::xgb.train(
+    mod2_xgb <- xgboost::xgboost(
         data=mod2_dmat_tr,
         params=mod2_params,
-        nrounds=mod2_bestn_rounds,
-        print_every_n=1
+        
+        # nrounds=mod2_bestn_rounds,
+        nrounds=2164,
+        
+        print_every_n=1,
+        save_period = NULL
     )
     
     
@@ -297,15 +371,28 @@ exp_target <- "logerror"  # <-- this isn't hooked up to anything yet, but this i
         
         
     # make predictions (this is generally kinda weird with multiple classes)
-    mod2_predictions <- predict(mod2_xgb, mod2_dmat_ho)
+    mod2_predictions <- as.data.frame(matrix(predict(mod2_xgb, mod2_dmat_ho), ncol=mod2_num_classes, byrow=T))
     class(mod2_predictions)
     length(mod2_predictions); dim(mod2_dmat_ho)
     
-    table(mod2_predictions)
-    
     # things to look for, are we just predicting it to be the most common class?
     # are we just giving every record the same score arbitrarily?
+    hist(mod2_predictions$V1)
+    hist(mod2_predictions$V2)
+    hist(mod2_predictions$V3)
+    mod2_predictions_combo <- cbind(mod2_y_holdout, mod2_predictions)    
+    
+    
+    # make predictions on test
+    mod2_test_preds <- as.data.frame(matrix(predict(mod2_xgb, mod2_dmat_te), ncol=mod2_num_classes, byrow=T))
+    hist(mod2_test_preds$V1, col='light blue', breaks=40)
+    hist(mod2_test_preds$V2, col='light blue', breaks=40)
+    hist(mod2_test_preds$V3, col='light blue', breaks=40)
         
+    
+    
+    #' ok, damn. Now I get it. I've built my functions too large and can't use the
+    #' pieces of them because they're too intertwined. 
     
         
 # submission generation --------------------------------------------------------------------------

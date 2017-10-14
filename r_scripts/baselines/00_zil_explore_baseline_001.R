@@ -9,8 +9,8 @@
 
 
 # source in config and function defs
-source('GBL_zil_config.R')
-source('GBL_zil_function_defs.R')
+source('r_scripts/GBL_zil_config.R')
+source('r_scripts/GBL_zil_function_defs.R')
 
 rebuild1 <- F
 
