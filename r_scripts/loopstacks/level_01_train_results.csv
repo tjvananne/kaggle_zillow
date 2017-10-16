@@ -1,0 +1,5 @@
+level_iteration,xgb_params,cv_score,holdout_score,best_nrounds
+_01_round_0001_,objective$reg:linear|eval_metric$mae|eta$0.02|max_depth$5|alpha$0|lambda$1|subsample$0.9|colsample_bytree$0.25|max_delta_step$0|nthread$6,0.0689602,0.0676800495474419,318
+_01_round_0002_,objective$reg:linear|eval_metric$mae|eta$0.02|max_depth$3|alpha$0|lambda$1|subsample$0.25|colsample_bytree$0.9|max_delta_step$1|nthread$6,0.0697812,0.0688585852996412,303
+_01_round_0001_,objective$reg:linear|eval_metric$mae|eta$0.02|max_depth$5|alpha$0|lambda$1|subsample$0.9|colsample_bytree$0.25|max_delta_step$0|nthread$6,0.0689602,0.0676800495474419,318
+_01_round_0002_,objective$reg:linear|eval_metric$mae|eta$0.02|max_depth$3|alpha$0|lambda$1|subsample$0.25|colsample_bytree$0.9|max_delta_step$1|nthread$6,0.0697812,0.0688585852996412,303

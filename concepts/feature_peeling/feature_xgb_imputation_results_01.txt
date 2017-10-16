@@ -21,7 +21,7 @@ all rand seeds set to 1776.
     "nthread" = 6)
 
 
-- cv test mae: 0.06884 with 687 iterations
+- cv test mae: 0.068845 with 687 iterations
 - train mae: 0.067617 with 687 iterations
 - holdout: 0.06695
 

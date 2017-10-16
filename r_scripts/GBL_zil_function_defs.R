@@ -285,7 +285,7 @@ tv_gen_numcat_long <- function(p_df, p_id, p_numcols=NULL, p_catcols=NULL,  p_sc
 
 
 # takes in long df, id (unquoted), tr/te/ho ids, target var (quoted)
-tv_gen_exp_sparsemats <- function(p_longdf, p_id, p_tr_ids, p_te_ids, p_ho_ids, p_target) {
+tv_gen_exp_sparsemats <- function(p_longdf, p_id, p_tr_ids, p_te_ids, p_ho_ids=NULL, p_target) {
     # p_longdf: longform of the dataset
     # p_id: name of the "id" field
     # p_target: name of the target variable
@@ -301,13 +301,13 @@ tv_gen_exp_sparsemats <- function(p_longdf, p_id, p_tr_ids, p_te_ids, p_ho_ids, 
     print("separating long data into tr, te, ho...")
     train_ <- p_longdf %>% filter(id %in% p_tr_ids$id)
     test_ <- p_longdf %>% filter(id %in% p_te_ids$id) 
-    holdout_ <- p_longdf %>% filter(id %in% p_ho_ids$id)
+    if(!is.null(p_ho_ids)) {holdout_ <- p_longdf %>% filter(id %in% p_ho_ids$id)}
     rm(p_te_ids, p_longdf); gc()
     
     # feature mapping table to create feature numbers
     print("distinct feature number mapping...")
     dist_feats <- intersect(train_$feature_name, test_$feature_name)
-    dist_feats <- intersect(dist_feats, holdout_$feature_name)
+    if(!is.null(p_ho_ids)) {dist_feats <- intersect(dist_feats, holdout_$feature_name)}
     dist_feats <- dist_feats[order(dist_feats)]
     df_dist_feats <- data.frame(feature_name=dist_feats, feature_num=1:length(dist_feats))
     gc()
@@ -317,63 +317,70 @@ tv_gen_exp_sparsemats <- function(p_longdf, p_id, p_tr_ids, p_te_ids, p_ho_ids, 
     setDT(test_); setkey(test_, feature_name)
     setDT(df_dist_feats); setkey(df_dist_feats, feature_name)
     setDT(train_); setkey(train_, feature_name)
-    setDT(holdout_); setkey(holdout_, feature_name)
+    if(!is.null(p_ho_ids)) {setDT(holdout_); setkey(holdout_, feature_name)}
     train_ <- merge(x=train_, y=df_dist_feats, by="feature_name", all.x=T, all.y=F, sort=F)
     test_ <- merge(x=test_, y=df_dist_feats, by="feature_name", all.x=T, all.y=F, sort=F)
-    holdout_ <- merge(x=holdout_, y=df_dist_feats, by="feature_name", all.x=T, all.y=F, sort=F)
+    if(!is.null(p_ho_ids)) {holdout_ <- merge(x=holdout_, y=df_dist_feats, by="feature_name", all.x=T, all.y=F, sort=F)}
     gc()
     # rm(df_dist_feats)  # <-- let's keep this for feature importance metrics later on
     print("filtering out features that don't exist in all three sets...")
     train_ <- train_ %>% filter(!is.na(feature_num))
     test_ <- test_ %>% filter(!is.na(feature_num))
-    holdout_ <- holdout_ %>% filter(!is.na(feature_num))
+    if(!is.null(p_ho_ids)) {holdout_ <- holdout_ %>% filter(!is.na(feature_num))}
     gc()
     
     # Numeric value mapping tables for IDs
     print("creating distinct numeric id mapping tables...")
     train_ids_ <- train_ %>% select(id) %>% unique() %>% arrange(id) %>% mutate(id_num = 1:nrow(.))
     test_ids_ <- test_ %>% select(id) %>% unique() %>% arrange(id) %>% mutate(id_num = 1:nrow(.))
-    holdout_ids_ <- holdout_ %>% select(id) %>% unique() %>% arrange(id) %>% mutate(id_num = 1:nrow(.))
+    if(!is.null(p_ho_ids)) {holdout_ids_ <- holdout_ %>% select(id) %>% unique() %>% arrange(id) %>% mutate(id_num = 1:nrow(.))}
     gc()
     
     # merge
     print("merging the distinct id numbers into data sets...")
-    setDT(train_ids_); setDT(test_ids_); setDT(holdout_ids_)
-    setDT(train_); setDT(test_); setDT(holdout_)
-    setkey(train_ids_, id); setkey(test_ids_, id); setkey(holdout_ids_, id)
-    setkey(train_, id); setkey(test_, id); setkey(holdout_, id)
+    setDT(train_ids_); setDT(test_ids_); if(!is.null(p_ho_ids)) {setDT(holdout_ids_)}
+    setDT(train_); setDT(test_); if(!is.null(p_ho_ids)) {setDT(holdout_)}
+    setkey(train_ids_, id); setkey(test_ids_, id); if(!is.null(p_ho_ids)) {setkey(holdout_ids_, id)}
+    setkey(train_, id); setkey(test_, id); if(!is.null(p_ho_ids)) {setkey(holdout_, id)}
     gc()
     test_ <- merge(x=test_, y=test_ids_, by="id", all.x=T, all.y=F, sort=F)
     rm(test_ids_); gc()
     train_ <- merge(x=train_, y=train_ids_, by="id", all.x=T, all.y=F, sort=F)
     rm(train_ids_); gc()
-    holdout_ <- merge(x=holdout_, y=holdout_ids_, by="id", all.x=T, all.y=F, sort=F)
-    rm(holdout_ids_); gc()
+    if(!is.null(p_ho_ids)) {
+        holdout_ <- merge(x=holdout_, y=holdout_ids_, by="id", all.x=T, all.y=F, sort=F)
+        rm(holdout_ids_); gc()
+    }
     
     
     # sparse mats
     print("generating sparse matrices...")
     spmat_tr_ <- sparseMatrix(i = train_$id_num, j = train_$feature_num, x = train_$value)
     spmat_te_ <- sparseMatrix(i = test_$id_num, j = test_$feature_num, x = test_$value)
-    spmat_ho_ <- sparseMatrix(i = holdout_$id_num, j = holdout_$feature_num, x = holdout_$value)
+    if(!is.null(p_ho_ids)) {spmat_ho_ <- sparseMatrix(i = holdout_$id_num, j = holdout_$feature_num, x = holdout_$value)}
     rm(test_)
     gc()
     
     # sort labels
     print("arranging labels before attaching to xgb.DMatrices...")
-    p_tr_ids <- p_tr_ids %>% filter(id %in% train_$id) %>% arrange(id)
-    p_ho_ids <- p_ho_ids %>% filter(id %in% holdout_$id) %>% arrange(id)
-    rm(train_, holdout_)
+    p_tr_ids <- p_tr_ids %>% filter(id %in% train_$id) %>% arrange(id) %>% data.frame()
+    if(!is.null(p_ho_ids)) {p_ho_ids <- p_ho_ids %>% filter(id %in% holdout_$id) %>% arrange(id) %>% data.frame()}
+    rm(train_); if(!is.null(p_ho_ids)) {rm(holdout_)}
     gc()
     
     # construct dmats
     print("generating xgb.DMatrices...")
     dmat_tr_ <- xgboost::xgb.DMatrix(spmat_tr_, label=p_tr_ids[, p_target])
     dmat_te_ <- xgboost::xgb.DMatrix(spmat_te_)
-    dmat_ho_ <- xgboost::xgb.DMatrix(spmat_ho_, label=p_ho_ids[, p_target])
+    if(!is.null(p_ho_ids)) {dmat_ho_ <- xgboost::xgb.DMatrix(spmat_ho_, label=p_ho_ids[, p_target])}
     gc()
     
-    return_list <- list(train=dmat_tr_, test=dmat_te_, holdout=dmat_ho_, features=df_dist_feats) 
+    if(!is.null(p_ho_ids)) {
+        return_list <- list(train=dmat_tr_, test=dmat_te_, holdout=dmat_ho_, features=df_dist_feats)
+    } else {
+        return_list <- list(train=dmat_tr_, test=dmat_te_, features=df_dist_feats)
+    }
+    
     return(return_list)
 }
 
